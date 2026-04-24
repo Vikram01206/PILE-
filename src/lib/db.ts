@@ -57,6 +57,22 @@ export const db = {
     const d = await dbPromise;
     return d.put('playlists', playlist);
   },
+  async addSongToPlaylist(playlistId: string, songId: string) {
+    const d = await dbPromise;
+    const playlist = await d.get('playlists', playlistId);
+    if (playlist && !playlist.songIds.includes(songId)) {
+      playlist.songIds.push(songId);
+      await d.put('playlists', playlist);
+    }
+  },
+  async removeSongFromPlaylist(playlistId: string, songId: string) {
+    const d = await dbPromise;
+    const playlist = await d.get('playlists', playlistId);
+    if (playlist) {
+      playlist.songIds = playlist.songIds.filter(id => id !== songId);
+      await d.put('playlists', playlist);
+    }
+  },
   async getAllPlaylists(): Promise<Playlist[]> {
     const d = await dbPromise;
     return d.getAll('playlists');
@@ -73,4 +89,28 @@ export const db = {
     const d = await dbPromise;
     return d.getAll('stats');
   },
+  async toggleLike(id: string) {
+    const d = await dbPromise;
+    const song = await d.get('songs', id);
+    if (song) {
+      song.liked = !song.liked;
+      song.rating = song.liked ? 5 : 0; // Legacy support
+      await d.put('songs', song);
+    }
+  },
+  async deleteSong(id: string) {
+    const d = await dbPromise;
+    return d.delete('songs', id);
+  },
+  async clearAll() {
+    const d = await dbPromise;
+    const tx = d.transaction(['songs', 'playlists', 'stats', 'settings'], 'readwrite');
+    await Promise.all([
+      tx.objectStore('songs').clear(),
+      tx.objectStore('playlists').clear(),
+      tx.objectStore('stats').clear(),
+      tx.objectStore('settings').clear(),
+      tx.done
+    ]);
+  }
 };

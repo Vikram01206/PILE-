@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { BarChart3, TrendingUp, Clock, Calendar, Music2, Mic2 } from 'lucide-react';
 import { db } from '../lib/db';
 import { Song, ListeningStat } from '../types';

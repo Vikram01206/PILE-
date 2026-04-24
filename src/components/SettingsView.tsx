@@ -9,37 +9,36 @@ const SettingsView: React.FC = () => {
   const [eqGains, setEqGains] = React.useState<number[]>(new Array(10).fill(0));
 
   const handleEQChange = (index: number, value: number) => {
-    const newGains = [...eqGains];
-    newGains[index] = value;
-    setEqGains(newGains);
+    setEqGains(prev => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
     setEQBand(index, value);
   };
 
   const clearLibrary = async () => {
-    const d = await db.getAllSongs();
-    // In a real app we'd delete from indexedDB stores manually
-    // For now, we'll just clear the specific collections if db supported it
-    // But since it's a demo, we'll suggest a refresh after some logic
+    await db.clearAll();
     window.location.reload(); 
   };
 
   const frequencies = ['60', '170', '310', '600', '1k', '3k', '6k', '12k', '14k', '16k'];
 
   return (
-    <div className="p-8 lg:p-16 max-w-4xl mx-auto space-y-12">
+    <div className="px-6 py-10 md:px-12 md:py-16 max-w-4xl mx-auto space-y-16">
       <div className="border-l-8 border-crimson pl-8 mb-12">
-        <h2 className="text-2xl md:text-4xl uppercase tracking-tighter italic font-black leading-none mb-3">Configuration</h2>
-        <p className="font-ui text-[9px] md:text-[10px] tracking-[0.4em] text-ink opacity-40 uppercase font-bold">Resonance Mechanics & Engine Tuning</p>
+        <h2 className="text-3xl md:text-5xl uppercase tracking-tighter italic font-black leading-tight mb-2">Configuration</h2>
+        <p className="font-ui text-[9px] md:text-[11px] tracking-[0.4em] text-ink opacity-60 uppercase font-bold">Engine Tuning & Resonance</p>
       </div>
 
       <section className="space-y-8">
-         <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
+         <div className="flex items-center gap-4 border-b-4 border-ink pb-4">
            <Activity className="w-6 h-6 text-crimson" />
-           <h3 className="font-display text-2xl uppercase italic font-black">10-Band Equalizer</h3>
+           <h3 className="font-display text-xl md:text-2xl uppercase italic font-black">10-Band Equalizer</h3>
          </div>
          
-         <div className="brutal-card p-6 md:p-10 bg-cream-warm">
-            <div className="flex justify-between items-end h-40 md:h-56 gap-1 md:gap-4">
+         <div className="brutal-card p-8 md:p-12 bg-cream-warm">
+            <div className="flex justify-between items-end h-48 md:h-64 gap-1.5 md:gap-5">
                {eqGains.map((gain, i) => (
                  <div key={i} className="flex-1 flex flex-col items-center gap-3 md:gap-4 h-full">
                     <div 
@@ -111,11 +110,11 @@ const SettingsView: React.FC = () => {
            <h3 className="font-display text-2xl uppercase italic font-black">Playback</h3>
          </div>
          
-         <div className="grid gap-4 md:gap-6">
-            <div className="flex items-center justify-between brutal-card p-5 md:p-6 bg-white">
-               <div className="space-y-1">
-                  <div className="font-display text-lg md:text-xl uppercase italic font-black leading-none">Gapless Playback</div>
-                  <div className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-widest font-bold">Seamless Transitions</div>
+         <div className="grid gap-6 md:gap-8">
+            <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
+               <div className="space-y-2">
+                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Gapless Playback</div>
+                  <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Seamless Transitions</div>
                </div>
                <div 
                 onClick={toggleGapless}
@@ -125,10 +124,10 @@ const SettingsView: React.FC = () => {
                </div>
             </div>
 
-            <div className="flex items-center justify-between brutal-card p-5 md:p-6 bg-white">
-               <div className="space-y-1">
-                  <div className="font-display text-lg md:text-xl uppercase italic font-black leading-none">Normalization</div>
-                  <div className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-widest font-bold">Consistent Volume Floor</div>
+            <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
+               <div className="space-y-2">
+                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Normalization</div>
+                  <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Consistent Volume Floor</div>
                </div>
                <div 
                 onClick={toggleNormalization}
@@ -146,19 +145,19 @@ const SettingsView: React.FC = () => {
            <h3 className="font-display text-2xl uppercase italic font-black">Interface</h3>
          </div>
          
-         <div className="grid gap-4 md:gap-6">
-            <div className="flex items-center justify-between brutal-card p-5 md:p-6 bg-white">
-               <div className="space-y-1">
-                  <div className="font-display text-lg md:text-xl uppercase italic font-black leading-none">Brutalist Shadows</div>
-                  <div className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-widest font-bold">High-Offset Visual Depth</div>
+         <div className="grid gap-6 md:gap-8">
+            <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
+               <div className="space-y-2">
+                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Brutalist Shadows</div>
+                  <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">High-Offset Visual Depth</div>
                </div>
-               <div className="brutal-btn p-1 px-4 text-[9px] font-black italic">ALWAYS ON</div>
+               <div className="brutal-btn p-1.5 px-5 text-[10px] font-black italic">ALWAYS ON</div>
             </div>
 
-            <div className="flex items-center justify-between brutal-card p-5 md:p-6 bg-white">
-               <div className="space-y-1">
-                  <div className="font-display text-lg md:text-xl uppercase italic font-black leading-none">Visualizer</div>
-                  <div className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-widest font-bold">Real-time Spectral Wave</div>
+            <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
+               <div className="space-y-2">
+                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Visualizer</div>
+                  <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Real-time Spectral Wave</div>
                </div>
                <div className="w-12 h-6 bg-crimson border-2 border-ink relative cursor-pointer">
                   <div className="absolute right-1 top-1 bottom-1 w-4 bg-ink" />
@@ -173,14 +172,14 @@ const SettingsView: React.FC = () => {
            <h3 className="font-display text-2xl uppercase italic font-black">Destruction</h3>
          </div>
          
-         <div className="brutal-card p-6 md:p-10 border-crimson border-4 bg-crimson/5">
-            <h4 className="font-display text-xl md:text-2xl mb-2 text-crimson uppercase italic font-black">Purge Library State</h4>
-            <p className="font-serif text-sm italic mb-8 opacity-60">Wipe all analysed metadata, ratings, and play history from this device. Piel's sonic memory will be erased reset to a zero state.</p>
+         <div className="brutal-card p-8 md:p-12 border-crimson border-4 bg-crimson/5">
+            <h4 className="font-display text-2xl md:text-3xl mb-4 text-crimson uppercase italic font-black">Purge Library State</h4>
+            <p className="font-serif text-base italic mb-10 opacity-70 leading-relaxed">Wipe all analysed metadata, ratings, and play history from this device. Piel's sonic memory will be erased reset to a zero state.</p>
             
             {confirmClear ? (
               <div className="flex gap-4">
                 <button onClick={clearLibrary} className="brutal-btn !bg-crimson !text-cream px-8">CONFIRM PURGE</button>
-                <button onClick={() => setConfirmClear(false)} className="brutal-btn bg-white text-ink px-8">CANCEL</button>
+                <button onClick={() => setConfirmClear(false)} className="brutal-btn bg-cream text-ink px-8">CANCEL</button>
               </div>
             ) : (
               <button onClick={() => setConfirmClear(true)} className="brutal-btn bg-ink text-cream hover:bg-crimson px-10">RESET DATABASE</button>

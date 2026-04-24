@@ -19,6 +19,7 @@ export interface Song {
   lastPlayedAt?: number;
   rating?: number;
   bpm?: number;
+  liked?: boolean;
 }
 
 export interface Playlist {
@@ -48,6 +49,7 @@ export interface PlaybackState {
   volume: number;
   playbackSpeed: number;
   currentTime: number;
+  bufferedTime?: number;
   isGapless?: boolean;
   isNormalized?: boolean;
 }

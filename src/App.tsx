@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Home, Music2, Disc, Mic2, Folder, Ghost, Heart, ListMusic, 
   Clock, TrendingUp, Search, Settings as SettingsIcon, 
@@ -43,9 +43,10 @@ const SidebarItem: React.FC<{
 const AppContent: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { state: audioState } = useAudio();
+  const { state: audioState, playSong } = useAudio();
 
   useEffect(() => {
     const loadSongs = async () => {
@@ -57,17 +58,26 @@ const AppContent: React.FC = () => {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'now-playing': return <NowPlaying />;
       case 'stats': return <StatsView />;
       case 'settings': return <SettingsView />;
-      case 'playlists': return <PlaylistManager />;
-      default: return <Library screen={currentScreen} songs={allSongs} onRefresh={() => db.getAllSongs().then(setAllSongs)} />;
+      case 'playlists': return <PlaylistManager allSongs={allSongs} />;
+      case 'folders': return (
+        <div className="p-4 md:p-8">
+          <div className="bg-cream-dark border-4 border-ink p-6 md:p-10 shadow-heavy rounded-2xl mb-10 overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-crimson rotate-45 translate-x-16 -translate-y-16 opacity-10" />
+            <h2 className="text-4xl md:text-6xl font-black uppercase italic mb-4 tracking-tighter">Signal Scanner</h2>
+            <p className="font-ui text-[10px] md:text-xs opacity-60 mb-8 uppercase font-bold tracking-[0.2em]">Map your local audio archive into the Piel ecosystem.</p>
+            <Library screen="folders" songs={[]} onRefresh={() => db.getAllSongs().then(setAllSongs)} onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} />
+          </div>
+        </div>
+      );
+      default: return <Library screen={currentScreen} songs={allSongs} onRefresh={() => db.getAllSongs().then(setAllSongs)} onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} />;
     }
   };
 
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
-    { id: 'songs', label: 'Songs', icon: Music2 },
+    { id: 'folders', label: 'Scanner', icon: Disc },
     { id: 'favorites', label: 'Likes', icon: Heart },
     { id: 'playlists', label: 'Playlists', icon: ListMusic },
     { id: 'stats', label: 'Stats', icon: BarChart3 },
@@ -120,6 +130,12 @@ const AppContent: React.FC = () => {
           </>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {isPlayerExpanded && (
+          <NowPlaying onMinimize={() => setIsPlayerExpanded(false)} />
+        )}
+      </AnimatePresence>
       
       {/* Desktop Sidebar */}
       <aside className="w-64 border-r-2 border-ink bg-cream-dark flex flex-col overflow-hidden hidden md:flex">
@@ -128,12 +144,10 @@ const AppContent: React.FC = () => {
           <p className="font-ui text-[9px] tracking-[0.3em] uppercase opacity-80 font-bold">Vinyl Store v1.0</p>
         </div>
         
-        <nav className="flex-1 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto border-r-0">
           <SidebarItem icon={Home} label="Home" active={currentScreen === 'home'} onClick={() => setCurrentScreen('home')} />
-          <SidebarItem icon={Music2} label="Songs" active={currentScreen === 'songs'} onClick={() => setCurrentScreen('songs')} />
-          <SidebarItem icon={Disc} label="Albums" active={currentScreen === 'albums'} onClick={() => setCurrentScreen('albums')} />
-          <SidebarItem icon={Mic2} label="Artists" active={currentScreen === 'artists'} onClick={() => setCurrentScreen('artists')} />
-          <SidebarItem icon={Heart} label="Favorites" active={currentScreen === 'favorites'} onClick={() => setCurrentScreen('favorites')} />
+          <SidebarItem icon={Disc} label="Scanner" active={currentScreen === 'folders'} onClick={() => setCurrentScreen('folders')} />
+          <SidebarItem icon={Heart} label="Liked" active={currentScreen === 'favorites'} onClick={() => setCurrentScreen('favorites')} />
           <SidebarItem icon={ListMusic} label="Playlists" active={currentScreen === 'playlists'} onClick={() => setCurrentScreen('playlists')} />
           <SidebarItem icon={BarChart3} label="Stats" active={currentScreen === 'stats'} onClick={() => setCurrentScreen('stats')} />
           <SidebarItem icon={SettingsIcon} label="Settings" active={currentScreen === 'settings'} onClick={() => setCurrentScreen('settings')} />
@@ -157,11 +171,11 @@ const AppContent: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative overflow-hidden bg-cream">
         {/* Header */}
-        <header className="h-16 border-b-2 border-ink flex items-center justify-between px-4 md:px-8 bg-cream z-10">
+        <header className="h-16 border-b-2 border-ink flex items-center justify-between px-4 md:px-8 bg-cream z-10 transition-colors">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className="p-2 border-2 border-ink bg-cream-warm shadow-brutal md:hidden"
+              className="p-2 border-2 border-ink bg-cream-warm shadow-brutal md:hidden rounded-lg"
             >
               <Menu size={20} />
             </button>
@@ -174,26 +188,26 @@ const AppContent: React.FC = () => {
           <div className="flex items-center gap-2 md:gap-4">
             <button 
               onClick={() => setIsSearchOpen(true)}
-              className="brutal-btn min-w-[120px] md:min-w-[160px] !bg-white !text-ink text-[10px] md:text-xs"
+              className="brutal-btn min-w-[120px] md:min-w-[160px] !bg-cream-warm !text-ink text-[10px] md:text-xs rounded-lg"
             >
               SEARCH [⌘K]
             </button>
-            <div className="w-10 h-10 bg-gold border-2 border-ink shadow-brutal flex items-center justify-center text-ink cursor-pointer" onClick={() => setCurrentScreen('favorites')}>
+            <div className="w-10 h-10 bg-gold border-2 border-ink shadow-brutal flex items-center justify-center text-ink cursor-pointer rounded-lg" onClick={() => setCurrentScreen('favorites')}>
                <Heart className="w-5 h-5 fill-current" />
             </div>
           </div>
         </header>
 
         {/* Screen Area */}
-        <div className="flex-1 overflow-y-auto bg-cream-warm pb-32 md:pb-0">
+        <div className={`flex-1 overflow-y-auto bg-cream-warm ${audioState.currentSongId ? 'pb-44 md:pb-20' : 'pb-20 md:pb-6'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={currentScreen}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="h-full"
+              className="min-h-full"
             >
               {renderScreen()}
             </motion.div>
@@ -201,18 +215,20 @@ const AppContent: React.FC = () => {
         </div>
 
         {/* Mini Player */}
-        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:relative z-40">
-          <MiniPlayer onExpand={() => setCurrentScreen('now-playing')} />
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:sticky md:bottom-0 p-2 md:p-0 z-40 bg-gradient-to-t from-cream to-transparent pointer-events-none">
+          <div className="pointer-events-auto">
+            <MiniPlayer onExpand={() => setIsPlayerExpanded(true)} />
+          </div>
         </div>
 
         {/* Mobile Bottom Nav */}
-        <nav className="fixed bottom-0 left-0 right-0 h-16 bg-cream border-t-2 border-ink flex md:hidden z-50">
+        <nav className="fixed bottom-0 left-0 right-0 h-16 bg-cream border-t-2 border-ink flex md:hidden z-30">
           {navItems.map(item => (
             <button
               key={item.id}
               onClick={() => setCurrentScreen(item.id as Screen)}
               className={`flex-1 flex flex-col items-center justify-center gap-1 transition-colors ${
-                currentScreen === item.id ? 'bg-crimson text-cream' : 'text-ink opacity-60'
+                currentScreen === item.id ? 'bg-crimson text-white' : 'text-ink opacity-60'
               }`}
             >
               <item.icon size={20} />

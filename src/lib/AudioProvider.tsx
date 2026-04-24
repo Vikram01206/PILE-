@@ -6,6 +6,7 @@ interface AudioContextType {
   state: PlaybackState;
   analyser: AnalyserNode | null;
   playSong: (song: Song, queue?: string[]) => void;
+  addToQueue: (songId: string) => void;
   togglePlay: () => void;
   seek: (time: number) => void;
   setVolume: (v: number) => void;
@@ -13,10 +14,13 @@ interface AudioContextType {
   setEQBand: (index: number, gain: number) => void;
   toggleGapless: () => void;
   toggleNormalization: () => void;
+  toggleMute: () => void;
   next: () => void;
   prev: () => void;
+  clearQueue: () => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
+  haptic: (pattern?: number | number[]) => void;
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined);
@@ -43,13 +47,28 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
   const gainNodeRef = useRef<GainNode | null>(null);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const audio = new Audio();
     (audioRef as any).current = audio;
 
+    const cleanup = () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+    };
+
+    audio.addEventListener('progress', () => {
+      if (audio.buffered.length > 0) {
+        setState(s => ({ ...s, bufferedTime: audio.buffered.end(audio.buffered.length - 1) }));
+      }
+    });
+
     audio.addEventListener('timeupdate', () => {
-      setState(s => ({ ...s, currentTime: audio.currentTime }));
+      const buffered = audio.buffered.length > 0 ? audio.buffered.end(audio.buffered.length - 1) : 0;
+      setState(s => ({ ...s, currentTime: audio.currentTime, bufferedTime: buffered }));
     });
 
     audio.addEventListener('ended', () => {
@@ -57,27 +76,110 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
 
     audio.addEventListener('error', (e) => {
-      console.error('Piel Engine: Audio stream corrupted or unreachable.', audio.error);
+      console.error('Piel Engine: Audio stream corrupted or unreachable.', {
+        error: audio.error,
+        src: audio.src?.substring(0, 50) + '...'
+      });
     });
 
     return () => {
       audio.pause();
       audio.src = '';
+      cleanup();
     };
   }, []);
 
-  const handleNext = () => {
-    // Basic next logic
-    setState(s => {
-      if (s.queue.length > 0) {
-        const nextId = s.queue[0];
-        const newQueue = s.queue.slice(1);
-        // This is a bit tricky since we need the actual Song object
-        // In this architecture, it's better to fetch from DB if needed
-        return { ...s, queue: newQueue };
+  const [lastVolume, setLastVolume] = useState(0.8);
+
+  const haptic = (pattern: number | number[] = 15) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate(pattern);
+      } catch (e) {
+        // Silently ignore
       }
-      return { ...s, isPlaying: false };
-    });
+    }
+  };
+
+  const handleNext = async () => {
+    haptic([10, 5, 10]);
+    
+    // If we have a queue, try to find the next song
+    if (state.queue.length > 0) {
+      if (state.isShuffle) {
+        const randomIndex = Math.floor(Math.random() * state.queue.length);
+        const song = await db.getSong(state.queue[randomIndex]);
+        if (song) {
+          playSong(song, state.queue);
+          return;
+        }
+      }
+
+      const currentIndex = state.queue.indexOf(state.currentSongId || '');
+      if (currentIndex !== -1 && currentIndex < state.queue.length - 1) {
+        const nextId = state.queue[currentIndex + 1];
+        const song = await db.getSong(nextId);
+        if (song) {
+          playSong(song, state.queue);
+          return;
+        }
+      } else if (state.isRepeat === 'all' && state.queue.length > 0) {
+        const song = await db.getSong(state.queue[0]);
+        if (song) {
+          playSong(song, state.queue);
+          return;
+        }
+      }
+    }
+
+    // Autoplay Fallback: If queue is exhausted or empty, find a random song to keep the music playing
+    try {
+      const allSongs = await db.getAllSongs();
+      if (allSongs.length > 0) {
+        const nextRandom = allSongs[Math.floor(Math.random() * allSongs.length)];
+        // Add it to the queue so the index-based logic works for the next skip
+        setState(s => ({
+          ...s,
+          queue: [...s.queue, nextRandom.id]
+        }));
+        playSong(nextRandom);
+      } else {
+        setState(s => ({ ...s, isPlaying: false }));
+        if (audioRef.current) audioRef.current.pause();
+      }
+    } catch (err) {
+      setState(s => ({ ...s, isPlaying: false }));
+      if (audioRef.current) audioRef.current.pause();
+    }
+  };
+
+  const handlePrev = async () => {
+    haptic([10, 5, 10]);
+    // If more than 3s into song, just restart it. 
+    // Reduced to 2s if user is frustrated, but 3s is standard. 
+    // Let's stick with 3s or even 4s for common UX.
+    if (audioRef.current && audioRef.current.currentTime > 3) {
+      seek(0);
+      return;
+    }
+
+    const currentIndex = state.queue.indexOf(state.currentSongId || '');
+    if (currentIndex > 0) {
+      const prevId = state.queue[currentIndex - 1];
+      const song = await db.getSong(prevId);
+      if (song) playSong(song, state.queue);
+    } else {
+      seek(0); // If first song, just go to start
+    }
+  };
+
+  const toggleMute = () => {
+    if (state.volume > 0) {
+      setLastVolume(state.volume);
+      setVolume(0);
+    } else {
+      setVolume(lastVolume || 0.8);
+    }
   };
 
   const [eqSettings, setEqSettings] = useState<number[]>(new Array(10).fill(0));
@@ -149,8 +251,15 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Revoke old URL if it exists
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+
     if (song.data) {
       const url = URL.createObjectURL(song.data);
+      objectUrlRef.current = url;
       audio.src = url;
     } else if (song.url) {
       audio.src = song.url;
@@ -220,11 +329,41 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setState(s => ({ ...s, playbackSpeed: speed }));
   };
 
+  const addToQueue = (songId: string) => {
+    setState(s => {
+      const currentIndex = s.currentSongId ? s.queue.indexOf(s.currentSongId) : -1;
+      const nextQueue = [...s.queue];
+      if (currentIndex !== -1) {
+        nextQueue.splice(currentIndex + 1, 0, songId);
+      } else {
+        nextQueue.push(songId);
+      }
+      return {
+        ...s,
+        queue: nextQueue
+      };
+    });
+  };
+
+  const clearQueue = () => {
+    haptic(15);
+    setState(s => {
+      // Keep only current song in queue if playing
+      const newQueue = s.currentSongId ? [s.currentSongId] : [];
+      return {
+        ...s,
+        queue: newQueue
+      };
+    });
+  };
+
   return (
     <AudioContext.Provider value={{
       state,
       analyser: analyserRef.current,
       playSong,
+      addToQueue,
+      clearQueue,
       togglePlay,
       seek,
       setVolume,
@@ -232,13 +371,21 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setEQBand,
       toggleGapless: () => setState(s => ({ ...s, isGapless: !s.isGapless })),
       toggleNormalization: () => setState(s => ({ ...s, isNormalized: !s.isNormalized })),
+      toggleMute,
       next: handleNext,
-      prev: () => {}, 
-      toggleShuffle: () => setState(s => ({ ...s, isShuffle: !s.isShuffle })),
-      toggleRepeat: () => setState(s => ({
-        ...s,
-        isRepeat: s.isRepeat === 'off' ? 'all' : s.isRepeat === 'all' ? 'one' : 'off'
-      })),
+      prev: handlePrev,
+      haptic,
+      toggleShuffle: () => {
+        haptic(20);
+        setState(s => ({ ...s, isShuffle: !s.isShuffle }));
+      },
+      toggleRepeat: () => {
+        haptic(20);
+        setState(s => ({
+          ...s,
+          isRepeat: s.isRepeat === 'off' ? 'all' : s.isRepeat === 'all' ? 'one' : 'off'
+        }));
+      },
     }}>
       {children}
     </AudioContext.Provider>

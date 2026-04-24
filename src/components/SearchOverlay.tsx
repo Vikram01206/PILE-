@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Search as SearchIcon, X, Music2, Disc, Mic2, ArrowRight } from 'lucide-react';
 import { Song } from '../types';
 import { useAudio } from '../lib/AudioProvider';
