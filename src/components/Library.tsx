@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
 import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc } from 'lucide-react';
 import { Song, Playlist } from '../types';
-import { parseSongFile, scanDirectory, scanLocalDirectory } from '../lib/libraryScanner';
+import { parseSongFile, scanDirectory } from '../lib/libraryScanner';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
 
@@ -247,12 +247,9 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
           }
           throw err;
         }
-      } else if ('showDirectoryPicker' in window) {
-        console.log('Piel Engine: Initiating Desktop File System scan...');
-        newSongs = await scanLocalDirectory();
       } else {
-        console.log('Piel Engine: No modern scanning API available, falling back to legacy input.');
-        folderInputRef.current?.click();
+        console.log('Piel Engine: Browser environment detected. Falling back to multi-file selection.');
+        fileInputRef.current?.click();
         return;
       }
 

@@ -35,38 +35,6 @@ export async function parseSongFile(file: File): Promise<Song> {
   };
 }
 
-export async function scanLocalDirectory(): Promise<Song[]> {
-  if (!('showDirectoryPicker' in window)) {
-    throw new Error('Directory picking is not supported in this browser.');
-  }
-
-  const handle = await (window as any).showDirectoryPicker();
-  const songs: Song[] = [];
-
-  async function walk(currentHandle: any, relativePath: string = '') {
-    for await (const entry of currentHandle.values()) {
-      const fullPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-      if (entry.kind === 'file') {
-        if (/\.(mp3|flac|wav|aac|ogg|m4a|mp4|m4b)$/i.test(entry.name)) {
-          const file = await entry.getFile();
-          try {
-            const song = await parseSongFile(file);
-            song.nativePath = fullPath;
-            songs.push(song);
-          } catch (e) {
-            console.error(`Error parsing ${fullPath}:`, e);
-          }
-        }
-      } else if (entry.kind === 'directory') {
-        await walk(entry, fullPath);
-      }
-    }
-  }
-
-  await walk(handle);
-  return songs;
-}
-
 export async function scanDirectory(files: FileList | File[]): Promise<Song[]> {
   const songs: Song[] = [];
   const fileArray = Array.from(files);
