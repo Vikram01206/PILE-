@@ -18,8 +18,30 @@ export async function openSettings() {
       });
     } catch (e) {
       console.error('Piel Engine: Failed to open settings via plugin:', e);
-      // Fallback: This might work on some Android devices
+      // Fallback
       window.open('package:com.piel.musicplayer', '_system');
+    }
+  }
+}
+
+export async function openAllFilesAccess() {
+  if (await isNative()) {
+    console.log('Piel Engine: Attempting to open All Files Access settings...');
+    try {
+      // Try specialized option if supported
+      await (NativeSettings as any).open({
+        option: 'manage_storage',
+      });
+    } catch (e) {
+      console.warn('Piel Engine: manage_storage option failed, falling back to app details.');
+      try {
+        await (NativeSettings as any).open({
+          option: 'app',
+        });
+      } catch (err) {
+        // Ultimate fallback
+        window.open('package:com.piel.musicplayer', '_system');
+      }
     }
   }
 }
@@ -104,9 +126,14 @@ export async function scanNativeMusic(onProgress?: (count: number, currentFile?:
     try {
       console.log('Piel Engine: No signals found in common sectors. Attempting broad spectrum scan...');
       await scanRecursive(Directory.ExternalStorage, '', foundSongs, audioExtensions, scannedPaths, onProgress);
-    } catch (e) {
+      
+      if (foundSongs.length === 0) {
+        throw new Error('No music found. On modern Android devices, you may need to grant "All Files Access" in system settings to let the engine scan your entire storage.');
+      }
+    } catch (e: any) {
       console.warn('Piel Engine: Broad spectrum scan failed. This usually indicates restricted storage access on modern Android systems.');
-      throw new Error('No music found. On modern Android devices, you may need to grant "All Files Access" in system settings.');
+      if (e.message?.includes('No music found')) throw e;
+      throw new Error('Scan restricted. On Android 11+, you must grant "All Files Access" in system settings to detect files outside standard media folders.');
     }
   }
 

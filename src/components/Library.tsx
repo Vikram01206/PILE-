@@ -497,8 +497,8 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
                  {scanError?.includes('All Files Access') && !isScanning && (
                    <button 
                      onClick={async () => {
-                       const { openSettings } = await import('../lib/nativeScanner');
-                       await openSettings();
+                       const { openAllFilesAccess } = await import('../lib/nativeScanner');
+                       await openAllFilesAccess();
                      }}
                      className="brutal-btn !bg-gold !text-ink uppercase text-[10px] py-2 w-full"
                    >
