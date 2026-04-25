@@ -319,6 +319,10 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
   }, [screen]);
 
   const getFolder = (song: Song) => {
+    if (song.folderPath) {
+      const parts = song.folderPath.split('/').filter(Boolean);
+      return parts[parts.length - 1] || 'Music';
+    }
     if (song.nativePath && song.nativePath.includes('/')) {
       const parts = song.nativePath.split('/');
       // Removing the file name to get the directory path

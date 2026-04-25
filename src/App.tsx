@@ -77,19 +77,6 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const test = async () => {
-      try {
-        console.log("START MEDIASTORE CALL");
-        const result = await (window as any).Capacitor.Plugins.MediaStorePlugin.getAudioFiles();
-        console.log("MEDIASTORE RESULT:", result);
-      } catch (e) {
-        console.error("MEDIASTORE ERROR:", e);
-      }
-    };
-    test();
-  }, []);
-
-  useEffect(() => {
     const initNativePermissions = async () => {
       const isNativeApp = Capacitor.isNativePlatform();
       console.log(`Piel Engine: Platform detected - ${isNativeApp ? 'NATIVE' : 'WEB'}`);

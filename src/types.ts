@@ -22,6 +22,7 @@ export interface Song {
   liked?: boolean;
   nativePath?: string;
   nativeDirectory?: string;
+  folderPath?: string;
 }
 
 export interface Playlist {

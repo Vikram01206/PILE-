@@ -98,24 +98,24 @@ export async function getMediaStoreSongs(): Promise<Song[]> {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const fileName = file.name || file.path.split('/').pop() || 'Unknown';
+      const fileName = file.name || 'Unknown';
       
-      // We don't have the Blob here yet, we'll fetch it lazily or when needed?
-      // Actually, to display them we need basic metadata.
-      // The MediaStore gives us most of it.
+      // Use the URI for playback and ID
+      // If path is available (it will be RELATIVE_PATH or DATA), use it for grouping
+      const displayPath = file.path || 'Music';
       
       songs.push({
-        id: `ms-${file.path}`,
+        id: `ms-${file.uri}`,
         title: file.name && file.name.replace(/\.[^/.]+$/, "") || 'Unknown',
         artist: file.artist || 'Unknown Artist',
         album: file.album || 'Unknown Album',
         duration: (file.duration || 0) / 1000,
         addedAt: Date.now(),
         playCount: 0,
-        nativePath: file.path,
-        // For MediaStore files, we'll need to fetch the file via Filesystem.readFile when playing
+        nativePath: file.uri, // Store the URI as nativePath for playback
+        folderPath: displayPath, // Store for grouping
         data: new File([], fileName), // Placeholder
-        url: '' // Placeholder
+        url: file.uri // Use the content URI directly
       });
     }
     return songs;
