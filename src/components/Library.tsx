@@ -9,6 +9,7 @@ import { useAudio } from '../lib/AudioProvider';
 interface LibraryProps {
   screen: string;
   songs: Song[];
+  isLoading?: boolean;
   onRefresh: () => void;
   onPlay?: () => void;
 }
@@ -205,7 +206,7 @@ const SongListItem: React.FC<{
   );
 };
 
-const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) => {
+const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, onPlay }) => {
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
@@ -228,22 +229,26 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
     try {
       let newSongs: Song[] = [];
       
-      const { isNative, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
+      const { isNative, getMediaStoreSongs, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
       const isNativeApp = await isNative();
       console.log(`Piel Engine: Scanning on platform: ${isNativeApp ? 'NATIVE' : 'WEB'}`);
 
       if (isNativeApp) {
-        console.log('Piel Engine: Initiating native scan sequence...');
+        console.log('Piel Engine: Initiating MediaStore query sequence...');
         try {
-          newSongs = await scanNativeMusic((count, file) => {
-            setScanProgress(count);
-            if (file) setCurrentFile(file);
-          });
-          console.log(`Piel Engine: Native scan found ${newSongs.length} items.`);
+          newSongs = await getMediaStoreSongs();
+          console.log(`Piel Engine: MediaStore query found ${newSongs.length} items.`);
+          
+          if (newSongs.length === 0) {
+            console.log('Piel Engine: MediaStore returned nothing. Falling back to directory traversal...');
+            newSongs = await scanNativeMusic((count, file) => {
+              setScanProgress(count);
+              if (file) setCurrentFile(file);
+            });
+          }
         } catch (err: any) {
           console.error('Piel Engine: Scanner Error:', err);
           if (err?.message?.includes('denied') || err?.message?.includes('permission')) {
-             console.log('Piel Engine: Attempting emergency permission request...');
              const status = await requestPermissions();
              console.log('Piel Engine: Emergency permission request result:', status);
           }
@@ -316,9 +321,12 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
   const getFolder = (song: Song) => {
     if (song.nativePath && song.nativePath.includes('/')) {
       const parts = song.nativePath.split('/');
-      return parts[parts.length - 2];
+      // Removing the file name to get the directory path
+      const dirPath = parts.slice(0, -1).join('/');
+      // Returning just the last folder name for UI
+      return parts[parts.length - 2] || 'Root';
     }
-    return 'Music';
+    return 'Library';
   };
 
   const filteredSongs = songs.filter(s => {
@@ -409,11 +417,11 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
       <div className="flex justify-between items-start mb-6 md:mb-8 px-1">
         <div className="flex gap-3 md:gap-4">
           <div className="space-y-0.5">
-            <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase">
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase text-ink">
               {getScreenTitle()}
             </h2>
             <div className="text-crimson font-black text-[8px] md:text-[9px] uppercase tracking-[0.2em] leading-none opacity-80">
-              {screen === 'folders' ? 'Deep System Analysis' : 'Your Personal High-Fidelity Stream'}
+              {screen === 'folders' ? 'Media Protocol v2.0' : 'High-Fidelity Audio Signals'}
             </div>
           </div>
         </div>
@@ -422,9 +430,9 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
           {screen === 'folders' && (
             <button 
               onClick={handleScanning}
-              disabled={isScanning}
-              className={`p-2 border-2 border-ink bg-gold text-ink shadow-brutal rounded-xl hover:bg-ink hover:text-gold transition-colors active:translate-y-0.5 active:shadow-none ${isScanning ? 'animate-pulse opacity-50' : ''}`}
-              title="System Scan"
+              disabled={isScanning || isLoading}
+              className={`p-2 border-2 border-ink bg-gold text-ink shadow-brutal rounded-xl hover:bg-ink hover:text-gold transition-colors active:translate-y-0.5 active:shadow-none ${isScanning || isLoading ? 'animate-pulse opacity-50' : ''}`}
+              title="Manual Scan"
             >
                <Upload size={18} strokeWidth={2.5} />
             </button>
@@ -468,7 +476,14 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
          ))}
       </div>
 
-      {!selectedFolder && libraryTab === 'folders' ? (
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+           <Disc className="w-12 h-12 text-crimson animate-spin mb-4" strokeWidth={3} />
+           <p className="font-ui text-[10px] font-black uppercase tracking-widest">Searching for frequencies...</p>
+        </div>
+      )}
+
+      {!isLoading && !selectedFolder && libraryTab === 'folders' ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
            {folders.length === 0 ? (
              <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">

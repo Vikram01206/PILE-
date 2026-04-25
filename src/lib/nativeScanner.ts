@@ -87,6 +87,44 @@ export async function requestPermissions() {
   return 'granted';
 }
 
+export async function getMediaStoreSongs(): Promise<Song[]> {
+  if (!(await isNative())) return [];
+  
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    const result = await (Capacitor as any).Plugins.MediaStorePlugin.getAudioFiles();
+    const files = result.files;
+    const songs: Song[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const fileName = file.name || file.path.split('/').pop() || 'Unknown';
+      
+      // We don't have the Blob here yet, we'll fetch it lazily or when needed?
+      // Actually, to display them we need basic metadata.
+      // The MediaStore gives us most of it.
+      
+      songs.push({
+        id: `ms-${file.path}`,
+        title: file.name && file.name.replace(/\.[^/.]+$/, "") || 'Unknown',
+        artist: file.artist || 'Unknown Artist',
+        album: file.album || 'Unknown Album',
+        duration: (file.duration || 0) / 1000,
+        addedAt: Date.now(),
+        playCount: 0,
+        nativePath: file.path,
+        // For MediaStore files, we'll need to fetch the file via Filesystem.readFile when playing
+        data: new File([], fileName), // Placeholder
+        url: '' // Placeholder
+      });
+    }
+    return songs;
+  } catch (e) {
+    console.error('Piel Engine: MediaStore query failed:', e);
+    return [];
+  }
+}
+
 export async function scanNativeMusic(onProgress?: (count: number, currentFile?: string) => void): Promise<Song[]> {
   const pStatus = await checkPermission();
   console.log('Piel Engine: Current permission status:', pStatus);

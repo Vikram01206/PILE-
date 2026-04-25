@@ -13,7 +13,7 @@ import {
 import { AudioProvider, useAudio } from './lib/AudioProvider';
 import { db } from './lib/db';
 import { Song, Playlist } from './types';
-import { isNative, scanNativeMusic } from './lib/nativeScanner';
+import { isNative, scanNativeMusic, getMediaStoreSongs } from './lib/nativeScanner';
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
@@ -50,6 +50,7 @@ const AppContent: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
+  const [isLoadingSongs, setIsLoadingSongs] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontTheme, setFontTheme] = useState('default');
   const { state: audioState, playSong } = useAudio();
@@ -67,10 +68,25 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const loadSongs = async () => {
+      setIsLoadingSongs(true);
       const songs = await db.getAllSongs();
       setAllSongs(songs);
+      setIsLoadingSongs(false);
     };
     loadSongs();
+  }, []);
+
+  useEffect(() => {
+    const test = async () => {
+      try {
+        console.log("START MEDIASTORE CALL");
+        const result = await (window as any).Capacitor.Plugins.MediaStorePlugin.getAudioFiles();
+        console.log("MEDIASTORE RESULT:", result);
+      } catch (e) {
+        console.error("MEDIASTORE ERROR:", e);
+      }
+    };
+    test();
   }, []);
 
   useEffect(() => {
@@ -80,29 +96,34 @@ const AppContent: React.FC = () => {
       
       if (isNativeApp) {
         try {
-          console.log('Piel Engine: Explicitly requesting permissions on startup...');
+          console.log('Piel Engine: Explicitly requesting permissions for MediaStore access...');
           const permStatus = await Filesystem.requestPermissions();
           console.log('Piel Engine: Startup Permission Request Result:', JSON.stringify(permStatus));
 
-          const { checkPermission } = await import('./lib/nativeScanner');
+          const { checkPermission, getMediaStoreSongs } = await import('./lib/nativeScanner');
           const pStatus = await checkPermission();
           console.log('Piel Engine: Verified Permission Status:', pStatus);
           
-          const { value } = await Preferences.get({ key: 'has_initial_scan' });
-          if (!value) {
-            console.log('Piel Engine: No initial scan found. Triggering background scan...');
-            const { scanNativeMusic } = await import('./lib/nativeScanner');
-            scanNativeMusic().then(async () => {
-               await Preferences.set({ key: 'has_initial_scan', value: 'true' });
+          if (pStatus === 'granted') {
+             console.log('Piel Engine: Permission granted. Accessing media signals...');
+             setIsLoadingSongs(true);
+             const msSongs = await getMediaStoreSongs();
+             console.log(`Piel Engine: Detected ${msSongs.length} signals via MediaStore.`);
+             
+             if (msSongs.length > 0) {
+               for (const song of msSongs) {
+                 await db.saveSong(song);
+               }
                const songs = await db.getAllSongs();
                setAllSongs(songs);
-               console.log('Piel Engine: Initial background scan completed.');
-            }).catch(err => {
-               console.error('Piel Engine: Initial background scan failed:', err);
-            });
+             }
+             setIsLoadingSongs(false);
+          } else {
+             console.warn('Piel Engine: Storage permission not granted. Native signals unavailable.');
           }
         } catch (err) {
           console.error('Piel Engine: Critical failure during native initialization:', err);
+          setIsLoadingSongs(false);
         }
       }
     };
@@ -114,7 +135,15 @@ const AppContent: React.FC = () => {
       case 'stats': return <StatsView />;
       case 'settings': return <SettingsView fontTheme={fontTheme} onFontThemeChange={setFontTheme} />;
       case 'playlists': return <PlaylistManager allSongs={allSongs} />;
-      default: return <Library screen={currentScreen} songs={allSongs} onRefresh={() => db.getAllSongs().then(setAllSongs)} onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} />;
+      default: return (
+        <Library 
+          screen={currentScreen} 
+          songs={allSongs} 
+          isLoading={isLoadingSongs}
+          onRefresh={() => db.getAllSongs().then(setAllSongs)} 
+          onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} 
+        />
+      );
     }
   };
 
