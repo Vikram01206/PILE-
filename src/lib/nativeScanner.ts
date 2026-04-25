@@ -12,44 +12,80 @@ export async function isNative(): Promise<boolean> {
 export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'> {
   if (!(await isNative())) return 'granted';
   
-  const status = await Filesystem.checkPermissions();
-  if (status.publicStorage === 'granted') return 'granted';
-  if (status.publicStorage === 'denied') return 'denied';
+  try {
+    const status = await Filesystem.checkPermissions();
+    console.log('Piel Engine: raw checkPermissions status:', status);
+    
+    // Check all possible fields for storage permissions
+    const publicStorage = status.publicStorage;
+    
+    if (publicStorage === 'granted') return 'granted';
+    if (publicStorage === 'denied') return 'denied';
+  } catch (e) {
+    console.error('Piel Engine: checkPermissions error:', e);
+  }
   return 'prompt';
 }
 
 export async function requestPermissions() {
   if (await isNative()) {
-    const status = await Filesystem.requestPermissions();
-    if (status.publicStorage !== 'granted') {
-      throw new Error('Storage permission denied');
+    try {
+      // On Android 13+, publicStorage check might be tricky.
+      // We explicitly request the permissions we need if the plugin supports it via generic permissions
+      const status = await Filesystem.requestPermissions();
+      console.log('Piel Engine: Permission status:', status);
+      return status.publicStorage;
+    } catch (e) {
+      console.error('Piel Engine: Error requesting permissions:', e);
+      return 'denied';
     }
-    return status.publicStorage;
   }
   return 'granted';
 }
 
-export async function scanNativeMusic(onProgress?: (count: number) => void): Promise<Song[]> {
+export async function scanNativeMusic(onProgress?: (count: number, currentFile?: string) => void): Promise<Song[]> {
   const pStatus = await checkPermission();
+  console.log('Piel Engine: Current permission status:', pStatus);
+  
   if (pStatus !== 'granted') {
-    await requestPermissions();
+    const newStatus = await requestPermissions();
+    if (newStatus !== 'granted') {
+      throw new Error('Permission denied. Please enable storage access in settings to scan your music library.');
+    }
   }
   
   const foundSongs: Song[] = [];
   const audioExtensions = ['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'mp4', 'm4b'];
 
-  // Common directories to scan on Android
+  // Common directories on Android
   const dirsToScan = [
     { dir: Directory.ExternalStorage, path: 'Music' },
     { dir: Directory.ExternalStorage, path: 'Download' },
+    { dir: Directory.ExternalStorage, path: 'Recordings' },
     { dir: Directory.Documents, path: '' }
   ];
+  
+  // We can also try root if we have legacy storage permission on older androids
+  // but for Android 11+ it's better to stick to named folders.
+  // We'll add root as a fallback if the first ones fail or find nothing
+  
+  const scannedPaths = new Set<string>();
 
   for (const scanTarget of dirsToScan) {
     try {
-      await scanRecursive(scanTarget.dir, scanTarget.path, foundSongs, audioExtensions, onProgress);
+      console.log(`Piel Engine: Scanning ${scanTarget.dir}/${scanTarget.path}`);
+      await scanRecursive(scanTarget.dir, scanTarget.path, foundSongs, audioExtensions, scannedPaths, onProgress);
     } catch (e) {
-      console.warn(`Failed to scan ${scanTarget.path}:`, e);
+      console.warn(`Piel Engine: Failed to scan ${scanTarget.path}:`, e);
+    }
+  }
+
+  // If we found nothing in common folders, try root cautiously
+  if (foundSongs.length === 0) {
+    try {
+      await scanRecursive(Directory.ExternalStorage, '', foundSongs, audioExtensions, scannedPaths, onProgress);
+    } catch (e) {
+      console.warn('Piel Engine: Root scan failed:', e);
     }
   }
 
@@ -61,8 +97,13 @@ async function scanRecursive(
   path: string, 
   foundSongs: Song[], 
   extensions: string[],
-  onProgress?: (count: number) => void
+  scannedPaths: Set<string>,
+  onProgress?: (count: number, currentFile?: string) => void
 ) {
+  const fullKey = `${directory}:${path}`;
+  if (scannedPaths.has(fullKey)) return;
+  scannedPaths.add(fullKey);
+
   try {
     const result = await Filesystem.readdir({
       directory,
@@ -73,32 +114,30 @@ async function scanRecursive(
       const fullPath = path ? `${path}/${file.name}` : file.name;
       
       if (file.type === 'directory') {
-        // Limit depth or exclude certain folders if needed
-        if (!file.name.startsWith('.') && file.name !== 'Android') {
-          await scanRecursive(directory, fullPath, foundSongs, extensions, onProgress);
+        // Exclude system and hidden folders
+        const systemFolders = ['Android', 'data', 'Lost.dir', 'system', 'logs'];
+        if (!file.name.startsWith('.') && !systemFolders.includes(file.name)) {
+          await scanRecursive(directory, fullPath, foundSongs, extensions, scannedPaths, onProgress);
         }
       } else {
         const ext = file.name.split('.').pop()?.toLowerCase() || '';
         if (extensions.includes(ext)) {
           try {
-            // Check if already in DB to avoid re-parsing?
-            // For now, parse it
+            onProgress?.(foundSongs.length, file.name);
             const song = await parseNativeFile(directory, fullPath, file.name);
             if (song) {
               foundSongs.push(song);
-              onProgress?.(foundSongs.length);
-              
-              // Save to DB immediately so user sees progress
               await db.saveSong(song);
             }
           } catch (e) {
-            console.error(`Error parsing native file ${fullPath}:`, e);
+            console.error(`Piel Engine: Error parsing ${fullPath}:`, e);
           }
         }
       }
     }
   } catch (e) {
-    console.error(`Error reading directory ${path}:`, e);
+    // Some directories might be restricted by Scoped Storage
+    console.debug(`Piel Engine: Skipping restricted directory ${path}`);
   }
 }
 

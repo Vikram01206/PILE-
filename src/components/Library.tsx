@@ -208,6 +208,8 @@ const SongListItem: React.FC<{
 const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) => {
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
   const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [currentFile, setCurrentFile] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { playSong, addToQueue, haptic } = useAudio();
@@ -219,18 +221,33 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
 
   const handleScanning = async () => {
     setIsScanning(true);
+    setScanProgress(0);
     try {
       let newSongs: Song[] = [];
       
-      // Try Native Scanner First if on mobile
-      const { isNative, scanNativeMusic } = await import('../lib/nativeScanner');
+      const { isNative, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
+      
+      // Check if we are running in an iframe (like AI Studio preview)
+      const isWindowInIframe = window.self !== window.top;
+
       if (await isNative()) {
-        newSongs = await scanNativeMusic();
-      } else if ('showDirectoryPicker' in window) {
-        // Use File System Access API on Desktop
+        try {
+          newSongs = await scanNativeMusic((count, file) => {
+            setScanProgress(count);
+            if (file) setCurrentFile(file);
+          });
+        } catch (err: any) {
+          console.error('Piel Engine: Scanner Error:', err);
+          if (err?.message?.includes('denied') || err?.message?.includes('permission')) {
+             await requestPermissions();
+          }
+          throw err;
+        }
+      } else if ('showDirectoryPicker' in window && !isWindowInIframe) {
+        // Only use Directory Picker if supported and NOT in an iframe
         newSongs = await scanLocalDirectory();
       } else {
-        // Fallback to hidden folder input
+        // Fallback to standard folder input for browsers/iframes
         folderInputRef.current?.click();
         return;
       }
@@ -245,6 +262,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
       console.error('Scan failed:', err);
     } finally {
       setIsScanning(false);
+      setCurrentFile('');
     }
   };
 
@@ -446,13 +464,18 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
            {folders.length === 0 ? (
              <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
                <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
-               <p className="font-display text-xl mb-4 text-ink-muted uppercase">Scanning for local frequencies...</p>
+               <p className="font-display text-xl mb-4 text-ink-muted uppercase">
+                 {isScanning ? `Analyzing ${scanProgress} Signals...` : 'Scanning for local frequencies...'}
+               </p>
+               {isScanning && currentFile && (
+                 <p className="font-ui text-[10px] uppercase tracking-widest mb-6 opacity-40 animate-pulse truncate w-full max-w-xs">{currentFile}</p>
+               )}
                <button 
                  onClick={handleScanning} 
                  disabled={isScanning}
                  className={`brutal-btn uppercase text-xs ${isScanning ? 'opacity-50' : ''}`}
                >
-                 {isScanning ? 'Analyzing...' : 'Deep Scan'}
+                 {isScanning ? 'System Active' : 'Deep Scan'}
                </button>
              </div>
            ) : (

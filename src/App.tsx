@@ -74,14 +74,26 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const initNativeScan = async () => {
       if (await isNative()) {
-        const { value } = await Preferences.get({ key: 'has_initial_scan' });
-        if (!value) {
-          // Trigger a background scan on first launch
-          scanNativeMusic().then(async () => {
-             await Preferences.set({ key: 'has_initial_scan', value: 'true' });
-             const songs = await db.getAllSongs();
-             setAllSongs(songs);
-          });
+        try {
+          const { checkPermission, requestPermissions } = await import('./lib/nativeScanner');
+          const pStatus = await checkPermission();
+          if (pStatus !== 'granted') {
+            await requestPermissions();
+          }
+
+          const { value } = await Preferences.get({ key: 'has_initial_scan' });
+          if (!value) {
+            // Trigger a background scan on first launch
+            scanNativeMusic().then(async () => {
+               await Preferences.set({ key: 'has_initial_scan', value: 'true' });
+               const songs = await db.getAllSongs();
+               setAllSongs(songs);
+            }).catch(err => {
+               console.error('Initial background scan failed:', err);
+            });
+          }
+        } catch (err) {
+          console.error('Failed to initialize native features:', err);
         }
       }
     };
