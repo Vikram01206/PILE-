@@ -226,10 +226,6 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
       let newSongs: Song[] = [];
       
       const { isNative, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
-      
-      // Check if we are running in an iframe (like AI Studio preview)
-      const isWindowInIframe = window.self !== window.top;
-
       if (await isNative()) {
         try {
           newSongs = await scanNativeMusic((count, file) => {
@@ -243,11 +239,9 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
           }
           throw err;
         }
-      } else if ('showDirectoryPicker' in window && !isWindowInIframe) {
-        // Only use Directory Picker if supported and NOT in an iframe
+      } else if ('showDirectoryPicker' in window) {
         newSongs = await scanLocalDirectory();
       } else {
-        // Fallback to standard folder input for browsers/iframes
         folderInputRef.current?.click();
         return;
       }
