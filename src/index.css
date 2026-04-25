@@ -1,12 +1,14 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700;1,900&family=Outfit:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Libre Baskerville", serif;
-  --font-display: "Playfair Display", serif;
-  --font-ui: "Space Mono", monospace;
-  --font-mono: "DM Mono", monospace;
+  --font-serif: "Playfair Display", serif;
+  --font-display: "Bebas Neue", sans-serif;
+  --font-ui: "JetBrains Mono", monospace;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-modern: "Outfit", sans-serif;
+  --font-condensed: "Space Grotesk", sans-serif;
 
   --color-crimson: #C0152A;
   --color-crimson-dark: #8B0E1C;
@@ -18,20 +20,89 @@
   --color-ink-muted: #4A2530;
   --color-gold: #D4A017;
 
-  --shadow-brutal: 4px 4px 0px #1A0A0D;
-  --shadow-heavy: 8px 8px 0px #1A0A0D;
-  --shadow-pressed: inset 2px 2px 0px #1A0A0D;
+   --shadow-brutal: 6px 6px 0px #1A0A0D;
+   --shadow-heavy: 12px 12px 0px #1A0A0D;
+   --shadow-pressed: inset 2px 2px 0px #1A0A0D;
+}
+
+@utility shadow-brutal {
+  box-shadow: 6px 6px 0px #1A0A0D;
+}
+
+@utility shadow-heavy {
+  box-shadow: 12px 12px 0px #1A0A0D;
+}
+
+@utility shadow-pressed {
+  box-shadow: inset 4px 4px 0px #1A0A0D;
 }
 
 @layer base {
   body {
-    @apply bg-cream text-ink font-serif antialiased selection:bg-crimson selection:text-cream overflow-hidden;
+    @apply bg-cream text-ink antialiased selection:bg-crimson selection:text-cream overflow-hidden;
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
   }
 
-  h1, h2, h3, h4 {
-    @apply font-display font-black tracking-tight italic;
+  /* Font Theme Map */
+  body {
+    --font-heading: var(--font-display);
+    --font-body: var(--font-sans);
+    font-family: var(--font-body);
   }
+
+  body.theme-font-default { 
+    --font-heading: var(--font-display);
+    --font-body: var(--font-sans);
+  }
+
+  body.theme-font-serif { 
+    --font-heading: "Playfair Display", serif;
+    --font-body: "Playfair Display", serif;
+    font-family: "Playfair Display", serif !important;
+  }
+  
+  body.theme-font-serif * {
+    font-family: inherit !important;
+  }
+
+  body.theme-font-modern { 
+    --font-heading: "Outfit", sans-serif;
+    --font-body: "Outfit", sans-serif;
+    font-family: "Outfit", sans-serif !important;
+  }
+  
+  body.theme-font-modern * {
+    font-family: inherit !important;
+  }
+
+  body.theme-font-condensed { 
+    --font-heading: "Space Grotesk", sans-serif;
+    --font-body: "Space Grotesk", sans-serif;
+    font-family: "Space Grotesk", sans-serif !important;
+  }
+  
+  body.theme-font-condensed * {
+    font-family: inherit !important;
+  }
+
+  body.theme-font-display { 
+    --font-heading: "Bebas Neue", sans-serif;
+    --font-body: "Bebas Neue", sans-serif;
+    font-family: "Bebas Neue", sans-serif !important;
+  }
+  
+  body.theme-font-display * {
+    font-family: inherit !important;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-black tracking-tight uppercase;
+    font-family: var(--font-heading) !important;
+  }
+  
+  body.theme-font-serif h1, body.theme-font-serif h2, body.theme-font-serif h3, body.theme-font-serif h4 { font-weight: 900; }
+  body.theme-font-modern h1, body.theme-font-modern h2, body.theme-font-modern h3, body.theme-font-modern h4 { font-weight: 900; }
+  body.theme-font-condensed h1, body.theme-font-condensed h2, body.theme-font-condensed h3, body.theme-font-condensed h4 { font-weight: 800; }
 
   .brutal-border {
     @apply border-2 border-ink;

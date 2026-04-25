@@ -47,7 +47,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ onClose, songs }) => {
             placeholder="PIEL INDEX SEARCH..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full h-20 md:h-32 bg-cream-warm border-4 border-ink brutal-shadow px-6 md:px-12 pl-14 md:pl-24 font-display text-2xl md:text-[64px] uppercase tracking-tighter italic outline-none focus:translate-x-[-4px] md:focus:translate-x-[-8px] focus:translate-y-[-4px] md:focus:translate-y-[-8px] focus:shadow-heavy transition-all placeholder:opacity-10"
+            className="w-full h-20 md:h-32 bg-cream-warm border-4 border-ink brutal-shadow px-6 md:px-12 pl-14 md:pl-24 font-display text-2xl md:text-[64px] uppercase tracking-tighter outline-none focus:translate-x-[-4px] md:focus:translate-x-[-8px] focus:translate-y-[-4px] md:focus:translate-y-[-8px] focus:shadow-heavy transition-all placeholder:opacity-10"
           />
         </div>
 
@@ -67,13 +67,13 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ onClose, songs }) => {
                 }}
               >
                 <div className="w-12 h-12 md:w-20 md:h-20 border-2 border-ink group-hover:border-white shadow-brutal flex-shrink-0 overflow-hidden bg-ink transition-all">
-                   {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-display text-xs md:text-base text-cream opacity-20 italic">P</div>}
+                   {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-display text-xs md:text-base text-cream opacity-20">P</div>}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-display text-xl md:text-4xl uppercase tracking-tighter italic font-black truncate leading-none mb-1 md:mb-2">{song.title}</div>
+                  <div className="font-display text-xl md:text-4xl uppercase tracking-tighter font-black truncate leading-none mb-1 md:mb-2">{song.title}</div>
                   <div className="font-ui text-[9px] md:text-[11px] opacity-60 uppercase tracking-widest font-bold truncate group-hover:opacity-100">{song.artist} — {song.album}</div>
                 </div>
-                <div className="hidden sm:block font-mono text-sm opacity-40 group-hover:opacity-100 italic pr-4">
+                <div className="hidden sm:block font-mono text-sm opacity-40 group-hover:opacity-100 pr-4">
                    {Math.floor(song.duration / 60)}:{(song.duration % 60).toString().padStart(2, '0')}
                 </div>
                 
@@ -82,7 +82,7 @@ const SearchOverlay: React.FC<SearchOverlayProps> = ({ onClose, songs }) => {
             ))}
           </AnimatePresence>
           {query && results.length === 0 && (
-            <div className="p-12 md:p-20 text-center border-4 border-dashed border-ink/20 font-display text-2xl md:text-4xl text-ink italic opacity-20 uppercase tracking-tighter">
+            <div className="p-12 md:p-20 text-center border-4 border-dashed border-ink/20 font-display text-2xl md:text-4xl text-ink opacity-20 uppercase tracking-tighter">
               No resonance detected for "{query}"
             </div>
           )}

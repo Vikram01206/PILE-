@@ -76,7 +76,7 @@ const MiniPlayer: React.FC<MiniPlayerProps> = ({ onExpand }) => {
           {song.picture ? (
             <img src={song.picture} alt="art" className="w-full h-full object-cover" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center font-display text-cream opacity-20 italic">P</div>
+            <div className="w-full h-full flex items-center justify-center font-display text-cream opacity-20">P</div>
           )}
         </div>
         <div className="min-w-0">

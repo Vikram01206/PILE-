@@ -39,7 +39,7 @@ export default function PWAStatus() {
                 <RefreshCw className="text-gold animate-spin" size={20} />
               )}
               <div>
-                <p className="font-display text-sm uppercase font-black italic">
+                <p className="font-display text-sm uppercase font-black">
                   {offlineReady ? 'READY FOR OFFLINE' : 'UPDATE AVAILABLE'}
                 </p>
                 <p className="font-ui text-[9px] uppercase tracking-widest opacity-60">

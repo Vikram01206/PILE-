@@ -31,15 +31,46 @@ export async function parseSongFile(file: File): Promise<Song> {
     url: URL.createObjectURL(file),
     addedAt: Date.now(),
     playCount: 0,
+    nativePath: (file as any).webkitRelativePath || file.name
   };
 }
 
-export async function scanDirectory(files: FileList): Promise<Song[]> {
+export async function scanLocalDirectory(): Promise<Song[]> {
+  if (!('showDirectoryPicker' in window)) {
+    throw new Error('Directory picking is not supported in this browser.');
+  }
+
+  const handle = await (window as any).showDirectoryPicker();
   const songs: Song[] = [];
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    
-    // Improved check: some browsers don't give a type for all audio files
+
+  async function walk(currentHandle: any, relativePath: string = '') {
+    for await (const entry of currentHandle.values()) {
+      const fullPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+      if (entry.kind === 'file') {
+        if (/\.(mp3|flac|wav|aac|ogg|m4a|mp4|m4b)$/i.test(entry.name)) {
+          const file = await entry.getFile();
+          try {
+            const song = await parseSongFile(file);
+            song.nativePath = fullPath;
+            songs.push(song);
+          } catch (e) {
+            console.error(`Error parsing ${fullPath}:`, e);
+          }
+        }
+      } else if (entry.kind === 'directory') {
+        await walk(entry, fullPath);
+      }
+    }
+  }
+
+  await walk(handle);
+  return songs;
+}
+
+export async function scanDirectory(files: FileList | File[]): Promise<Song[]> {
+  const songs: Song[] = [];
+  const fileArray = Array.from(files);
+  for (const file of fileArray) {
     const isAudio = file.type.startsWith('audio/') || 
                     /\.(mp3|flac|wav|aac|ogg|m4a|mp4|m4b)$/i.test(file.name);
 
@@ -49,11 +80,6 @@ export async function scanDirectory(files: FileList): Promise<Song[]> {
         songs.push(song);
       } catch (e) {
         console.error(`Piel Engine Error: Failed to decode ${file.name}. This format might be corrupted or unsupported by your browser's decoder.`, e);
-      }
-    } else {
-      // Ignore known non-audio files quietly, but maybe log others
-      if (!file.name.startsWith('.') && !['Thumbs.db', 'desktop.ini', 'folder.jpg', 'cover.jpg'].includes(file.name)) {
-        console.warn(`Piel Engine: Ignoring non-audio file ${file.name}`);
       }
     }
   }

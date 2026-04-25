@@ -20,6 +20,7 @@ interface AudioContextType {
   clearQueue: () => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
+  reorderQueue: (newQueue: string[]) => void;
   haptic: (pattern?: number | number[]) => void;
 }
 
@@ -42,6 +43,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const eqNodesRef = useRef<BiquadFilterNode[]>([]);
@@ -68,10 +70,28 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     audio.addEventListener('timeupdate', () => {
       const buffered = audio.buffered.length > 0 ? audio.buffered.end(audio.buffered.length - 1) : 0;
+      // We still update on timeupdate as a fallback, but requestAnimationFrame will handle the smooth visuals
       setState(s => ({ ...s, currentTime: audio.currentTime, bufferedTime: buffered }));
     });
 
+    let rafId: number;
+    const updateProgress = () => {
+      if (audio.paused) return;
+      
+      setState(s => ({ ...s, currentTime: audio.currentTime }));
+      rafId = requestAnimationFrame(updateProgress);
+    };
+
+    audio.addEventListener('play', () => {
+      rafId = requestAnimationFrame(updateProgress);
+    });
+
+    audio.addEventListener('pause', () => {
+      cancelAnimationFrame(rafId);
+    });
+
     audio.addEventListener('ended', () => {
+      cancelAnimationFrame(rafId);
       handleNext();
     });
 
@@ -192,6 +212,7 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
       analyserRef.current = ctx.createAnalyser();
       analyserRef.current.fftSize = 256;
+      setAnalyser(analyserRef.current);
 
       sourceRef.current = ctx.createMediaElementSource(audioRef.current);
 
@@ -248,6 +269,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const playSong = async (song: Song, queue: string[] = []) => {
     initAudioCtx();
+    if (audioCtxRef.current?.state === 'suspended') {
+      await audioCtxRef.current.resume();
+    }
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -294,6 +318,9 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const togglePlay = () => {
     initAudioCtx();
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
     const audio = audioRef.current;
     if (!audio || !state.currentSongId) return;
 
@@ -357,12 +384,30 @@ export const AudioProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const reorderQueue = (newQueueIds: string[]) => {
+    setState(s => {
+      // We must ensure currentSongId remains in the head of the list if it was there,
+      // but Reorder component usually handles the items passed to it.
+      // NowPlaying filters the queue to only show upcoming songs.
+      // So newQueueIds will likely be just the upcoming songs.
+      
+      const currentIndex = s.currentSongId ? s.queue.indexOf(s.currentSongId) : -1;
+      const head = currentIndex !== -1 ? s.queue.slice(0, currentIndex + 1) : [];
+      
+      return {
+        ...s,
+        queue: [...head, ...newQueueIds]
+      };
+    });
+  };
+
   return (
     <AudioContext.Provider value={{
       state,
-      analyser: analyserRef.current,
+      analyser,
       playSong,
       addToQueue,
+      reorderQueue,
       clearQueue,
       togglePlay,
       seek,

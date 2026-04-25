@@ -48,9 +48,13 @@ const StatsView: React.FC = () => {
 
   return (
     <div className="p-6 md:p-8 lg:p-16 max-w-7xl mx-auto space-y-12 md:space-y-16">
-      <div className="border-l-4 md:border-l-8 border-crimson pl-6 md:pl-8 mb-12 md:mb-16">
-        <h2 className="text-5xl md:text-8xl italic font-black uppercase tracking-tighter leading-none mb-3 md:mb-4">ARCHIVE SCAN</h2>
-        <p className="font-ui text-[10px] md:text-xs tracking-[0.3em] md:tracking-[0.5em] text-ink opacity-40 uppercase font-bold">Resonance Analysis & Consumption Metrics</p>
+      <div className="flex justify-between items-start mb-12 md:mb-16 px-1">
+        <div className="flex gap-3 md:gap-4">
+          <div className="space-y-0.5">
+            <h2 className="text-2xl md:text-5xl font-black uppercase tracking-tighter leading-none">ARCHIVE SCAN</h2>
+            <div className="text-crimson font-black text-[8px] md:text-[9px] uppercase tracking-[0.2em] leading-none opacity-80">Resonance Analysis & Consumption Metrics</div>
+          </div>
+        </div>
       </div>
 
       {/* Hero Stats */}
@@ -58,24 +62,24 @@ const StatsView: React.FC = () => {
         <div className="brutal-card p-6 md:p-10 bg-crimson text-white shadow-heavy">
            <div className="font-ui text-[8px] md:text-[10px] uppercase font-bold tracking-[0.3em] md:tracking-[0.4em] mb-4 md:mb-6 opacity-60">Total Signal Time</div>
            <div className="flex items-baseline gap-2">
-             <div className="font-numeric text-5xl md:text-7xl font-black italic leading-none">{Math.round(totalPlayTime / 60)}</div>
-             <div className="font-serif italic text-lg md:text-xl">m</div>
+             <div className="font-numeric text-5xl md:text-7xl font-black leading-none">{Math.round(totalPlayTime / 60)}</div>
+             <div className="font-serif text-lg md:text-xl">m</div>
            </div>
            <Clock className="w-8 h-8 md:w-12 md:h-12 mt-6 md:mt-8 opacity-20" />
         </div>
         <div className="brutal-card p-6 md:p-10 bg-cream-warm shadow-heavy">
            <div className="font-ui text-[8px] md:text-[10px] uppercase font-bold tracking-[0.3em] md:tracking-[0.4em] mb-4 md:mb-6 opacity-40">Cycles Completed</div>
            <div className="flex items-baseline gap-2">
-             <div className="font-numeric text-5xl md:text-7xl font-black italic leading-none">{stats.length}</div>
-             <div className="font-serif italic text-lg md:text-xl">#</div>
+             <div className="font-numeric text-5xl md:text-7xl font-black leading-none">{stats.length}</div>
+             <div className="font-serif text-lg md:text-xl">#</div>
            </div>
            <Music2 className="w-8 h-8 md:w-12 md:h-12 mt-6 md:mt-8 text-crimson opacity-20" />
         </div>
         <div className="brutal-card p-6 md:p-10 bg-ink text-cream shadow-heavy sm:col-span-2 lg:col-span-1">
            <div className="font-ui text-[8px] md:text-[10px] uppercase font-bold tracking-[0.3em] md:tracking-[0.4em] mb-4 md:mb-6 opacity-40">Total Registered</div>
            <div className="flex items-baseline gap-2 text-gold">
-             <div className="font-numeric text-5xl md:text-7xl font-black italic leading-none">{allSongs.length}</div>
-             <div className="font-serif italic text-lg md:text-xl">tr</div>
+             <div className="font-numeric text-5xl md:text-7xl font-black leading-none">{allSongs.length}</div>
+             <div className="font-serif text-lg md:text-xl">tr</div>
            </div>
            <TrendingUp className="w-8 h-8 md:w-12 md:h-12 mt-6 md:mt-8 opacity-20" />
         </div>
@@ -83,7 +87,7 @@ const StatsView: React.FC = () => {
 
       {/* Top Artists - Primary Focus Now */}
       <div className="brutal-card p-6 md:p-12 bg-cream-dark shadow-heavy">
-        <h3 className="text-2xl md:text-4xl italic font-black uppercase tracking-tight mb-8 md:mb-12 border-b-2 md:border-b-4 border-ink pb-4 md:pb-6 flex items-center gap-4 text-crimson">
+        <h3 className="text-xl md:text-3xl font-black uppercase tracking-tight mb-8 md:mb-12 border-b-2 md:border-b-4 border-ink pb-4 md:pb-6 flex items-center gap-4 text-crimson">
           <Mic2 className="w-6 h-6 md:w-8 md:h-8" />
           PRIMAL FREQUENCIES (TOP ARTISTS)
         </h3>
@@ -94,12 +98,12 @@ const StatsView: React.FC = () => {
                 <div className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center font-numeric text-lg md:text-xl bg-ink text-cream border-2 border-ink shadow-brutal transform transition-transform group-hover:rotate-12 group-hover:bg-crimson">
                   {i + 1}
                 </div>
-                <div className="font-display text-xl md:text-3xl italic font-black uppercase tracking-tighter group-hover:text-crimson transition-colors truncate max-w-[150px] md:max-w-xs">{artist.name}</div>
+                <div className="font-display text-xl md:text-3xl font-black uppercase tracking-tighter group-hover:text-crimson transition-colors truncate max-w-[150px] md:max-w-xs">{artist.name}</div>
               </div>
               <div className="font-numeric text-[10px] md:text-sm font-bold bg-cream px-2 md:px-3 py-1 border-2 border-ink shadow-brutal uppercase tracking-widest">{artist.count} PLAYS</div>
             </div>
           ))}
-          {topArtists.length === 0 && <div className="col-span-full text-center font-ui py-20 text-ink opacity-20 uppercase tracking-[0.5em] font-bold italic">SIGNAL VOID</div>}
+          {topArtists.length === 0 && <div className="col-span-full text-center font-ui py-20 text-ink opacity-20 uppercase tracking-[0.5em] font-bold">SIGNAL VOID</div>}
         </div>
       </div>
     </div>

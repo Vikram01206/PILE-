@@ -1,8 +1,9 @@
 import React, { useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Reorder, useDragControls, useMotionValue, animate } from 'motion/react';
 import { 
   Play, Pause, SkipForward, SkipBack, Repeat, Shuffle, 
-  Heart, Plus, Share2, List, Volume2, VolumeX, ChevronDown, Disc, MoreVertical, Info, Music2
+  Heart, Plus, Share2, List, Volume2, VolumeX, ChevronDown, Disc, MoreVertical, Info, Music2,
+  GripVertical
 } from 'lucide-react';
 import { useAudio } from '../lib/AudioProvider';
 import { db } from '../lib/db';
@@ -10,8 +11,59 @@ import { Song } from '../types';
 
 import confetti from 'canvas-confetti';
 
-const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
-  const { state, togglePlay, next, prev, seek, setVolume, analyser, toggleMute, toggleShuffle, toggleRepeat, haptic, clearQueue } = useAudio();
+const QueueItem: React.FC<{ song: Song; index: number; onPlay: () => void }> = ({ song, index, onPlay }) => {
+  const dragControls = useDragControls();
+
+  return (
+    <Reorder.Item
+      value={song}
+      id={song.id}
+      dragListener={false}
+      dragControls={dragControls}
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -20 }}
+      whileDrag={{ 
+        scale: 1.04, 
+        backgroundColor: "var(--color-cream-warm)",
+        boxShadow: "0px 20px 40px rgba(26, 10, 13, 0.15), 8px 8px 0px #1A0A0D",
+        zIndex: 1000
+      }}
+      className="flex items-center gap-4 p-4 hover:bg-ink/5 border-2 border-transparent hover:border-ink/10 transition-colors group rounded-xl relative bg-cream select-none touch-none"
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <motion.div 
+        whileTap={{ scale: 0.9 }}
+        onPointerDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          dragControls.start(e);
+        }}
+        className="cursor-grab active:cursor-grabbing p-2 -ml-2 text-ink/20 group-hover:text-ink/60 transition-colors touch-none"
+      >
+        <GripVertical size={20} />
+      </motion.div>
+      
+      <div className="w-10 h-10 border-2 border-ink bg-cream-dark overflow-hidden shrink-0">
+        {song.picture ? (
+          <img src={song.picture} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-cream-dark text-ink/20">
+            <Music2 size={16} />
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0 pointer-events-auto" onClick={onPlay}>
+        <div className="font-display text-xs font-black uppercase truncate leading-tight">{song.title}</div>
+        <div className="font-ui text-[8px] font-bold opacity-40 uppercase truncate leading-none mt-1">{song.artist}</div>
+      </div>
+    </Reorder.Item>
+  );
+};
+
+const NowPlaying: React.FC<{ isExpanded: boolean; onMinimize?: () => void }> = ({ isExpanded, onMinimize }) => {
+  const { state, playSong, togglePlay, next, prev, seek, setVolume, analyser, toggleMute, toggleShuffle, toggleRepeat, haptic, clearQueue, reorderQueue } = useAudio();
   const [song, setSong] = React.useState<Song | null>(null);
   const [nextSong, setNextSong] = React.useState<Song | null>(null);
   const [isLiked, setIsLiked] = React.useState(false);
@@ -19,21 +71,38 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
   const [showDetails, setShowDetails] = React.useState(false);
   
   const [showQueue, setShowQueue] = React.useState(false);
+  const [showVisualizer, setShowVisualizer] = React.useState(false);
   const [queueSongs, setQueueSongs] = React.useState<Song[]>([]);
 
+  const songsCache = useRef<Map<string, Song>>(new Map());
+
+  const [isReordering, setIsReordering] = React.useState(false);
+
   useEffect(() => {
-    if (showQueue && state.queue.length > 0) {
+    if (showQueue && state.queue.length > 0 && !isReordering) {
       const currentIndex = state.queue.indexOf(state.currentSongId || '');
       const upcomingIds = state.queue.slice(currentIndex + 1);
       
-      Promise.all(upcomingIds.map(id => db.getSong(id))).then(songs => {
-        setQueueSongs(songs.filter((s): s is Song => s !== undefined));
+      const existingMap = new Map(queueSongs.map(s => [s.id, s]));
+      
+      Promise.all(upcomingIds.map(id => {
+        if (existingMap.has(id)) return existingMap.get(id);
+        if (songsCache.current.has(id)) return songsCache.current.get(id);
+        return db.getSong(id);
+      })).then(songs => {
+        const validSongs = songs.filter((s): s is Song => s !== undefined);
+        validSongs.forEach(s => songsCache.current.set(s.id, s));
+        
+        const currentIds = queueSongs.map(s => s.id).join(',');
+        const incomingIds = validSongs.map(s => s.id).join(',');
+        if (currentIds !== incomingIds) {
+          setQueueSongs(validSongs);
+        }
       });
     }
   }, [showQueue, state.queue, state.currentSongId]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (state.currentSongId) {
@@ -74,51 +143,31 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
     await db.toggleLike(song.id);
   };
 
-  const shareTrack = async () => {
-    if (!song) return;
-    const text = `Listening to ${song.title} by ${song.artist} on NEOMORPH 📻`;
-    
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'NEOMORPH Signal',
-          text: text,
-          url: window.location.href,
-        });
-      } catch (err) {
-        console.error('Error sharing:', err);
-      }
-    } else {
-      navigator.clipboard.writeText(text);
-      // feedback could go here
-    }
-    setIsMenuOpen(false);
-  };
-
   // Visualizer Logic
   useEffect(() => {
-    if (!analyser || !canvasRef.current) return;
+    if (!analyser || !canvasRef.current || !showVisualizer) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let animationId: number;
+
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
     const renderFrame = () => {
-      requestAnimationFrame(renderFrame);
+      animationId = requestAnimationFrame(renderFrame);
       analyser.getByteFrequencyData(dataArray);
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const barCount = 120;
+      const barCount = 100;
       const barWidth = (canvas.width / barCount);
       let barHeight;
       let x = 0;
 
       for (let i = 0; i < barCount; i++) {
         barHeight = (dataArray[i * 2] / 255) * canvas.height;
-        const hue = (i / barCount) * 360;
         ctx.fillStyle = i % 2 === 0 ? '#C0152A' : '#D4A017';
         ctx.globalAlpha = 0.8;
         ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
@@ -126,16 +175,19 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
       }
     };
     renderFrame();
-  }, [analyser]);
 
-  if (!state.currentSongId || !song) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-8 bg-cream">
-        <Disc size={64} className="animate-pulse opacity-10 mb-4" />
-        <p className="font-mono text-xs uppercase tracking-widest text-ink/40">Searching for signals...</p>
-      </div>
-    );
-  }
+    return () => cancelAnimationFrame(animationId);
+  }, [analyser, showVisualizer]);
+
+  const parentDragControls = useDragControls();
+
+  const [isSeeking, setIsSeeking] = React.useState(false);
+  const [seekTime, setSeekTime] = React.useState(0);
+
+  const y = useMotionValue(0);
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  if (!state.currentSongId || !song) return null;
 
   const formatTime = (s: number) => {
     const min = Math.floor(s / 60);
@@ -143,14 +195,86 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
+  const currentTime = isSeeking ? seekTime : state.currentTime;
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, rect: DOMRect) => {
+    setIsSeeking(true);
+    const updateSeek = (clientX: number) => {
+      const x = clientX - rect.left - 16;
+      const v = Math.max(0, Math.min(1, x / (rect.width - 32)));
+      const nextTime = v * song.duration;
+      setSeekTime(nextTime);
+    };
+    updateSeek(e.clientX);
+    
+    const onMove = (me: PointerEvent) => updateSeek(me.clientX);
+    const onUp = (me: PointerEvent) => {
+      const x = me.clientX - rect.left - 16;
+      const v = Math.max(0, Math.min(1, x / (rect.width - 32)));
+      seek(v * song.duration);
+      setIsSeeking(false);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    haptic(10);
+  };
+
   return (
-    <motion.div 
-      initial={{ y: '100%' }}
-      animate={{ y: 0 }}
-      exit={{ y: '100%' }}
-      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      className="fixed inset-0 z-[100] flex flex-col bg-cream"
-    >
+    <>
+      {/* Internal Scrim Overlay */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onMinimize}
+            className="fixed inset-0 bg-ink/70 backdrop-blur-[6px] z-[90]"
+          />
+        )}
+      </AnimatePresence>
+
+      <motion.div 
+        drag="y"
+        dragControls={parentDragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: window.innerHeight }}
+        dragElastic={{ top: 0, bottom: 0.1 }}
+        style={{ 
+          y,
+          touchAction: 'none',
+          pointerEvents: isExpanded ? 'auto' : 'none',
+        }}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(_, info) => {
+          setIsDragging(false);
+          if (info.offset.y > 150 || info.velocity.y > 600) {
+            onMinimize?.();
+          } else {
+            animate(y, 0, { type: 'spring', damping: 30, stiffness: 300 });
+          }
+        }}
+        animate={{ y: isExpanded ? 0 : window.innerHeight }}
+        transition={{ 
+          type: 'spring', 
+          damping: 35, 
+          stiffness: 350, 
+          mass: 0.8,
+          restDelta: 0.01
+        }}
+        className="fixed inset-0 z-[100] flex flex-col bg-cream shadow-2xl rounded-t-[40px] overflow-hidden"
+      >
+
+      {/* Drag Handle Indicator */}
+      <div 
+        className="w-full flex justify-center pt-3 pb-1 shrink-0 md:hidden cursor-grab active:cursor-grabbing"
+        onPointerDown={(e) => parentDragControls.start(e)}
+      >
+        <div className="w-10 h-1.5 bg-ink/10 rounded-full" />
+      </div>
+
       <AnimatePresence>
         {showDetails && (
           <motion.div 
@@ -175,8 +299,8 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                       {song.picture ? <img src={song.picture} alt="" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-white/5"><Disc size={64}/></div>}
                    </div>
                    <div className="space-y-4">
-                      <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter italic leading-none">{song.title}</h2>
-                      <p className="text-xl md:text-3xl font-serif text-gold italic font-bold">{song.artist}</p>
+                      <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter leading-none">{song.title}</h2>
+                      <p className="text-xl md:text-3xl font-serif text-gold font-bold">{song.artist}</p>
                    </div>
                 </div>
 
@@ -327,8 +451,14 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div className="flex justify-between items-center px-4 py-2 w-full max-w-xl mx-auto shrink-0 z-10">
+      <div 
+        onPointerDown={(e) => {
+          // Only start parent drag if not clicking buttons
+          if ((e.target as HTMLElement).closest('button')) return;
+          parentDragControls.start(e);
+        }}
+        className="flex justify-between items-center px-4 py-2 w-full max-w-xl mx-auto shrink-0 z-10 cursor-grab active:cursor-grabbing"
+      >
         <button 
           onClick={onMinimize}
           className="w-9 h-9 rounded-full border-4 border-ink bg-crimson text-white flex items-center justify-center shadow-heavy active:translate-y-1 transition-all"
@@ -341,13 +471,19 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
         <div className="flex gap-2">
           <button 
             onClick={() => { haptic(10); toggleMute(); }}
-            className="w-9 h-9 border-4 border-ink bg-cream flex items-center justify-center shadow-brutal hover:bg-cream-dark transition-colors rounded-lg"
+            className="w-9 h-9 border-2 border-ink bg-cream flex items-center justify-center shadow-brutal hover:bg-cream-dark transition-colors rounded-lg"
           >
             {state.volume === 0 ? <VolumeX size={18} className="text-crimson" /> : <Volume2 size={18} />}
           </button>
           <button 
+            onClick={() => { haptic(15); setShowVisualizer(!showVisualizer); }}
+            className={`w-9 h-9 border-2 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showVisualizer ? 'bg-gold text-ink' : 'bg-cream hover:bg-cream-dark'}`}
+          >
+            <Disc size={18} className={state.isPlaying ? 'animate-spin-slow' : ''} />
+          </button>
+          <button 
             onClick={() => { haptic(20); setShowQueue(true); }}
-            className={`w-9 h-9 border-4 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showQueue ? 'bg-crimson text-white' : 'bg-cream hover:bg-cream-dark'}`}
+            className={`w-9 h-9 border-2 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showQueue ? 'bg-crimson text-white' : 'bg-cream hover:bg-cream-dark'}`}
           >
             <List size={18} />
           </button>
@@ -358,8 +494,11 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
         <div className="w-full flex flex-col items-center gap-4">
           
           {/* Artwork & Peek - More Compact */}
-          <div className="w-full flex items-center justify-center gap-3 px-6">
-            <div className="w-48 h-48 sm:w-60 sm:h-60 border-4 border-ink bg-cream shadow-heavy rounded-[20px] overflow-hidden relative shrink-0">
+          <div 
+            onPointerDown={(e) => parentDragControls.start(e)}
+            className="w-full flex items-center justify-center gap-3 px-6 relative cursor-grab active:cursor-grabbing"
+          >
+            <div className={`w-48 h-48 sm:w-60 sm:h-60 border-4 border-ink bg-cream shadow-heavy rounded-[20px] overflow-hidden relative shrink-0 transition-all duration-500 ${showVisualizer || isDragging ? 'scale-75 translate-y--4' : ''}`}>
               {song.picture ? (
                 <img src={song.picture} alt="cover" className="w-full h-full object-cover" />
               ) : (
@@ -368,8 +507,23 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                 </div>
               )}
             </div>
-            {/* Peek Next Track - Visible only as a small tab */}
-            <div className="w-10 h-40 border-4 border-ink bg-cream shadow-heavy rounded-l-[20px] overflow-hidden hidden sm:block shrink-0 opacity-30">
+
+            {/* Visualizer Canvas overlay */}
+            <AnimatePresence>
+              {showVisualizer && !isDragging && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className="absolute inset-x-6 top-4 bottom-8 pointer-events-none flex items-end justify-center"
+                >
+                   <canvas ref={canvasRef} width={400} height={180} className="w-full h-full" />
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Peek Next Track */}
+            <div className={`w-10 h-40 border-4 border-ink bg-cream shadow-heavy rounded-l-[20px] overflow-hidden hidden sm:block shrink-0 opacity-30 transition-opacity ${showVisualizer ? 'opacity-0' : 'opacity-30'}`}>
                {nextSong?.picture ? (
                  <img src={nextSong.picture} alt="" className="w-full h-full object-cover grayscale" />
                ) : (
@@ -384,7 +538,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                <h1 className="text-lg md:text-xl font-black tracking-tight text-ink truncate leading-tight uppercase">
                  {song.title}
                </h1>
-               <p className="text-sm md:text-base font-serif text-crimson italic font-bold">
+               <p className="text-sm md:text-base font-serif text-crimson font-bold">
                  {song.artist}
                </p>
             </div>
@@ -403,21 +557,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                   className="h-8 flex items-center relative cursor-pointer px-4 touch-none group"
                   onPointerDown={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const updateSeek = (clientX: number) => {
-                      const x = clientX - rect.left - 16;
-                      const v = Math.max(0, Math.min(1, x / (rect.width - 32)));
-                      seek(v * song.duration);
-                    };
-                    updateSeek(e.clientX);
-                    
-                    const onMove = (me: PointerEvent) => updateSeek(me.clientX);
-                    const onUp = () => {
-                      window.removeEventListener('pointermove', onMove);
-                      window.removeEventListener('pointerup', onUp);
-                    };
-                    window.addEventListener('pointermove', onMove);
-                    window.addEventListener('pointerup', onUp);
-                    haptic(10);
+                    handlePointerDown(e, rect);
                   }}
                 >
                   {/* Pixel Style Squiggly Progress Bar */}
@@ -425,10 +565,10 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                     <svg width="100%" height="24" viewBox="0 0 400 24" preserveAspectRatio="none" className="overflow-visible">
                       <defs>
                         <clipPath id="played-mask">
-                           <rect x="0" y="0" width={400 * (state.currentTime / (song.duration || 1))} height="24" />
+                           <rect x="0" y="0" width={400 * (currentTime / (song.duration || 1))} height="24" />
                         </clipPath>
                         <clipPath id="unplayed-mask">
-                           <rect x={400 * (state.currentTime / (song.duration || 1))} y="0" width="400" height="24" />
+                           <rect x={400 * (currentTime / (song.duration || 1))} y="0" width="400" height="24" />
                         </clipPath>
                       </defs>
 
@@ -443,7 +583,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
 
                       {/* Played Track (Squiggly when playing, Straight when paused) */}
                       <motion.path
-                        d={state.isPlaying 
+                        d={state.isPlaying && !isDragging 
                           ? `M 0 12 ${[...Array(20)].map((_, i) => `Q ${i * 20 + 10} ${i % 2 === 0 ? 4 : 20}, ${(i + 1) * 20} 12`).join(' ')}`
                           : "M 0 12 L 400 12"
                         }
@@ -453,14 +593,14 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                         className="text-crimson"
                         strokeLinecap="round"
                         clipPath="url(#played-mask)"
-                        animate={state.isPlaying ? { 
+                        animate={state.isPlaying && !isDragging ? { 
                           d: [
                             `M 0 12 ${[...Array(20)].map((_, i) => `Q ${i * 20 + 10} ${i % 2 === 0 ? 4 : 20}, ${(i + 1) * 20} 12`).join(' ')}`,
                             `M 0 12 ${[...Array(20)].map((_, i) => `Q ${i * 20 + 10} ${i % 2 === 0 ? 20 : 4}, ${(i + 1) * 20} 12`).join(' ')}`,
                             `M 0 12 ${[...Array(20)].map((_, i) => `Q ${i * 20 + 10} ${i % 2 === 0 ? 4 : 20}, ${(i + 1) * 20} 12`).join(' ')}`
                           ]
                         } : { d: "M 0 12 L 400 12" }}
-                        transition={state.isPlaying ? {
+                        transition={state.isPlaying && !isDragging ? {
                           duration: 1.5,
                           repeat: Infinity,
                           ease: "easeInOut"
@@ -471,15 +611,15 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
 
                   <motion.div 
                     className="absolute w-8 h-8 rounded-full border-4 border-ink bg-crimson shadow-brutal pointer-events-none z-10"
-                    animate={{ left: `calc(16px + (${state.currentTime} / ${song.duration || 1}) * (100% - 32px))` }}
+                    animate={{ left: `calc(16px + (${currentTime} / ${song.duration || 1}) * (100% - 32px))` }}
                     style={{ x: '-50%' }}
-                    transition={{ type: 'spring', bounce: 0.1, duration: 0.1 }}
+                    transition={{ type: 'tween', ease: 'linear', duration: isSeeking ? 0 : 0.1 }}
                   />
                 </div>
              </div>
              
              <div className="flex justify-between items-center font-ui text-[8px] font-black uppercase tracking-widest text-ink">
-               <span className="font-mono">{formatTime(state.currentTime)}</span>
+               <span className="font-mono">{formatTime(currentTime)}</span>
                <div className="bg-cream border-2 border-ink px-2 py-0.5 rounded-md text-[7px] font-black shadow-sm flex items-center gap-1.5 opacity-60">
                   <div className="w-1 h-1 rounded-full bg-green-500" />
                   44.1 kHz • MP3
@@ -563,7 +703,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
             >
                <div className="p-6 md:p-8 flex items-center justify-between border-b-4 border-ink bg-cream-dark">
                   <div className="flex-1">
-                    <h3 className="font-display text-2xl md:text-3xl uppercase italic font-black leading-none">Transmission Queue</h3>
+                    <h3 className="font-display text-2xl md:text-3xl uppercase font-black leading-none">Transmission Queue</h3>
                     <div className="flex items-center gap-3 mt-1">
                       <p className="font-ui text-[10px] uppercase font-black opacity-40 tracking-widest">{queueSongs.length} Coming Next</p>
                     </div>
@@ -585,7 +725,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                           {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Disc size={24}/></div>}
                        </div>
                        <div className="flex-1 min-w-0">
-                         <div className="font-display text-sm font-black italic uppercase truncate leading-tight">{song.title}</div>
+                         <div className="font-display text-sm font-black uppercase truncate leading-tight">{song.title}</div>
                          <div className="font-ui text-[9px] font-bold opacity-60 uppercase truncate">{song.artist}</div>
                        </div>
                        <div className="w-3 h-3 flex items-center justify-center">
@@ -602,24 +742,33 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
                   <div className="space-y-3 pt-4">
                     <div className="font-ui text-[9px] font-black uppercase tracking-[0.3em] opacity-40">Coming Operations</div>
                     {queueSongs.length === 0 ? (
-                      <p className="text-center py-10 font-serif italic text-ink/30 border-2 border-dashed border-ink rounded-xl">No subsequent signals detected.</p>
+                      <p className="text-center py-10 font-serif text-ink/30 border-2 border-dashed border-ink rounded-xl">No subsequent signals detected.</p>
                     ) : (
-                      <div className="space-y-2">
-                        {queueSongs.map((s, idx) => {
-                          return (
-                            <div key={`${s.id}-${idx}`} className="flex items-center gap-4 p-3 hover:bg-ink/5 border-2 border-transparent hover:border-ink/10 transition-all group rounded-lg">
-                               <div className="font-numeric text-[10px] opacity-20 w-4">{idx + 1}</div>
-                               <div className="w-10 h-10 border-2 border-ink bg-cream-dark overflow-hidden shrink-0">
-                                  {s.picture ? <img src={s.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
-                               </div>
-                               <div className="flex-1 min-w-0">
-                                 <div className="font-display text-xs font-black italic uppercase truncate leading-tight">{s.title}</div>
-                                 <div className="font-ui text-[8px] font-bold opacity-40 uppercase truncate leading-none mt-1">{s.artist}</div>
-                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <Reorder.Group 
+                        axis="y" 
+                        values={queueSongs} 
+                        onReorder={(newSongs) => {
+                          setQueueSongs(newSongs);
+                          reorderQueue(newSongs.map(s => s.id));
+                        }}
+                        className="space-y-2"
+                        onDragStart={() => setIsReordering(true)}
+                        onDragEnd={() => setIsReordering(false)}
+                      >
+                        {queueSongs.map((s, idx) => (
+                          <QueueItem 
+                            key={s.id} 
+                            song={s} 
+                            index={idx}
+                            onPlay={() => {
+                              haptic(10);
+                              db.getSong(s.id).then(song => {
+                                if (song) playSong(song, state.queue);
+                              });
+                            }}
+                          />
+                        ))}
+                      </Reorder.Group>
                     )}
                   </div>
                </div>
@@ -647,6 +796,7 @@ const NowPlaying: React.FC<{ onMinimize?: () => void }> = ({ onMinimize }) => {
         )}
       </AnimatePresence>
     </motion.div>
+    </>
   );
 };
 

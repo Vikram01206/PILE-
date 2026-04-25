@@ -9,17 +9,31 @@ export async function isNative(): Promise<boolean> {
   return info.platform === 'android' || info.platform === 'ios';
 }
 
-async function requestPermissions() {
+export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  if (!(await isNative())) return 'granted';
+  
+  const status = await Filesystem.checkPermissions();
+  if (status.publicStorage === 'granted') return 'granted';
+  if (status.publicStorage === 'denied') return 'denied';
+  return 'prompt';
+}
+
+export async function requestPermissions() {
   if (await isNative()) {
     const status = await Filesystem.requestPermissions();
     if (status.publicStorage !== 'granted') {
       throw new Error('Storage permission denied');
     }
+    return status.publicStorage;
   }
+  return 'granted';
 }
 
 export async function scanNativeMusic(onProgress?: (count: number) => void): Promise<Song[]> {
-  await requestPermissions();
+  const pStatus = await checkPermission();
+  if (pStatus !== 'granted') {
+    await requestPermissions();
+  }
   
   const foundSongs: Song[] = [];
   const audioExtensions = ['mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'mp4', 'm4b'];

@@ -85,7 +85,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
             </button>
             <div>
               <div className="font-ui text-[10px] uppercase font-black opacity-40 tracking-widest mb-1">Collection</div>
-              <h2 className="text-4xl md:text-6xl uppercase tracking-tighter italic font-black leading-none">{selectedPlaylist.name}</h2>
+              <h2 className="text-2xl md:text-4xl uppercase tracking-tighter font-black leading-none">{selectedPlaylist.name}</h2>
             </div>
           </div>
 
@@ -113,7 +113,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
           {/* List of songs */}
           <div className="space-y-4">
              {playlistSongs.length === 0 ? (
-               <div className="py-20 border-4 border-dashed border-ink flex flex-col items-center justify-center opacity-30 italic bg-cream-dark/5 shadow-inner">
+               <div className="py-20 border-4 border-dashed border-ink flex flex-col items-center justify-center opacity-30 bg-cream-dark/5 shadow-inner">
                  <Music2 size={64} className="mb-6 opacity-40" />
                  <p className="font-display text-2xl uppercase font-black">Array Vacancy</p>
                  <p className="font-ui text-[10px] uppercase tracking-widest mt-2">Register signals to populate this set.</p>
@@ -137,7 +137,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
                         {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
                      </div>
                      <div className="flex-1 min-w-0">
-                       <div className="font-display text-sm md:text-base font-black italic uppercase truncate leading-none">{song.title}</div>
+                       <div className="font-display text-sm md:text-base font-black uppercase truncate leading-none">{song.title}</div>
                        <div className="font-ui text-[9px] md:text-[10px] font-bold text-ink opacity-40 uppercase truncate tracking-widest mt-1">{song.artist}</div>
                      </div>
                      <div className="hidden sm:block font-numeric text-[10px] opacity-40">
@@ -175,7 +175,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
               >
                 <div className="p-6 md:p-8 border-b-4 border-ink bg-cream-dark flex flex-col gap-4">
                    <div className="flex items-center justify-between">
-                     <h3 className="font-display text-2xl md:text-3xl uppercase font-black italic leading-none">Signal Ingestion</h3>
+                     <h3 className="font-display text-2xl md:text-3xl uppercase font-black leading-none">Signal Ingestion</h3>
                      <button onClick={() => setShowAddSongs(false)} className="p-2 hover:bg-ink/5 rounded-full"><X size={24} /></button>
                    </div>
                    
@@ -199,7 +199,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
                           {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : null}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-display text-xs font-black uppercase truncate italic leading-none">{song.title}</div>
+                          <div className="font-display text-xs font-black uppercase truncate leading-none">{song.title}</div>
                           <div className="font-ui text-[8px] font-bold opacity-40 uppercase truncate mt-1 tracking-widest">{song.artist}</div>
                         </div>
                         <button 
@@ -211,10 +211,10 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
                      </div>
                    ))}
                    {songsToPick.length === 0 && searchQuery && (
-                     <div className="py-20 text-center italic opacity-30">No signals match your frequency.</div>
+                     <div className="py-20 text-center opacity-30 uppercase font-black tracking-widest text-xs">No signals match your frequency.</div>
                    )}
                    {songsToPick.length === 0 && !searchQuery && (
-                     <div className="py-20 text-center italic opacity-30">All signals registered in this array.</div>
+                     <div className="py-20 text-center opacity-30 uppercase font-black tracking-widest text-xs">All signals registered in this array.</div>
                    )}
                 </div>
 
@@ -231,10 +231,12 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
 
   return (
     <div className="p-4 md:p-8 lg:p-16 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-12 border-b-4 border-ink pb-8 md:pb-12">
-        <div className="border-l-4 border-crimson pl-4 md:pl-6">
-          <h2 className="text-4xl md:text-6xl uppercase tracking-tighter italic font-black leading-none mb-2">Playlists</h2>
-          <p className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-[0.3em] font-bold">Curated Sound Collections</p>
+      <div className="flex justify-between items-start mb-8 md:mb-12 px-1">
+        <div className="flex gap-3 md:gap-4">
+          <div className="space-y-0.5">
+          <h2 className="text-2xl md:text-4xl uppercase tracking-tighter font-black leading-none mb-2">Playlists</h2>
+            <div className="text-crimson font-black text-[8px] md:text-[10px] uppercase tracking-[0.2em] leading-none opacity-80">Curated Sound Collections</div>
+          </div>
         </div>
         <button onClick={() => setShowCreateModal(true)} className="brutal-btn flex items-center justify-center gap-2 text-xs md:text-lg">
           <Plus size={20} />
@@ -251,7 +253,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
             className="group brutal-border bg-cream p-3 md:p-4 hover:shadow-heavy transition-all cursor-pointer relative"
           >
             <div className="aspect-square border-2 border-ink bg-cream-dark mb-4 shadow-brutal overflow-hidden relative">
-               <div className="w-full h-full flex items-center justify-center font-display text-4xl md:text-7xl text-ink-muted opacity-30 select-none italic font-black">
+               <div className="w-full h-full flex items-center justify-center font-display text-4xl md:text-7xl text-ink-muted opacity-30 select-none font-black">
                  {playlist.name[0]}
                </div>
                <div className="absolute inset-0 bg-crimson/90 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
@@ -269,7 +271,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
             </div>
             
             <div className="space-y-1">
-              <h3 className="font-display text-base md:text-2xl uppercase tracking-tight font-black italic truncate leading-none">{playlist.name}</h3>
+              <h3 className="font-display text-base md:text-2xl uppercase tracking-tight font-black truncate leading-none">{playlist.name}</h3>
               <div className="flex items-center justify-between">
                 <p className="font-ui text-[8px] md:text-[10px] text-ink opacity-40 uppercase tracking-widest font-black truncate">{playlist.songIds.length} TRACKS</p>
                 <button 
@@ -284,7 +286,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
         ))}
 
         {playlists.length === 0 && (
-          <div className="col-span-full border-2 border-dashed border-ink p-12 md:p-24 flex flex-col items-center justify-center text-ink opacity-10 italic">
+          <div className="col-span-full border-2 border-dashed border-ink p-12 md:p-24 flex flex-col items-center justify-center text-ink opacity-10">
             <ListMusic size={64} className="mb-4" />
             <p className="font-display text-2xl md:text-4xl uppercase font-black text-center">Silence Has No Curator</p>
           </div>
@@ -307,7 +309,7 @@ const PlaylistManager: React.FC<PlaylistManagerProps> = ({ allSongs }) => {
               exit={{ scale: 0.9, opacity: 0 }}
               className="relative w-full max-w-md bg-cream-warm border-4 border-ink shadow-heavy p-6 md:p-10"
             >
-              <h3 className="font-display text-2xl md:text-4xl uppercase tracking-tighter mb-8 italic font-black">Define Collection</h3>
+              <h3 className="font-display text-2xl md:text-4xl uppercase tracking-tighter mb-8 font-black">Define Collection</h3>
               <div className="space-y-6 md:space-y-8">
                 <div>
                   <label className="font-ui text-[9px] md:text-[10px] text-ink opacity-40 uppercase tracking-[0.4em] font-bold block mb-3">Manifest Name</label>

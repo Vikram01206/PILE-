@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download, Search, RefreshCw, Music } from 'lucide-react';
+import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download, Search, RefreshCw, Music, Type } from 'lucide-react';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
 import { isNative, scanNativeMusic } from '../lib/nativeScanner';
 
-const SettingsView: React.FC = () => {
+interface SettingsProps {
+  fontTheme: string;
+  onFontThemeChange: (theme: string) => void;
+}
+
+const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange }) => {
   const [confirmClear, setConfirmClear] = React.useState(false);
   const { state, setEQBand, toggleGapless, toggleNormalization, haptic } = useAudio();
   const [eqGains, setEqGains] = React.useState<number[]>(new Array(10).fill(0));
@@ -50,15 +55,17 @@ const SettingsView: React.FC = () => {
 
   return (
     <div className="px-6 py-10 md:px-12 md:py-16 max-w-4xl mx-auto space-y-16">
-      <div className="border-l-8 border-crimson pl-8 mb-12">
-        <h2 className="text-3xl md:text-5xl uppercase tracking-tighter italic font-black leading-tight mb-2">Configuration</h2>
-        <p className="font-ui text-[9px] md:text-[11px] tracking-[0.4em] text-ink opacity-60 uppercase font-bold">Engine Tuning & Resonance</p>
+      <div className="flex gap-4 mb-12">
+        <div>
+          <h2 className="text-4xl md:text-5xl uppercase tracking-tighter font-black leading-tight mb-2">Configuration</h2>
+          <p className="font-ui text-[9px] md:text-[11px] tracking-[0.4em] text-ink opacity-60 uppercase font-bold">Engine Tuning & Resonance</p>
+        </div>
       </div>
 
       <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-4 border-ink pb-4">
            <Activity className="w-6 h-6 text-crimson" />
-           <h3 className="font-display text-xl md:text-2xl uppercase italic font-black">10-Band Equalizer</h3>
+           <h3 className="font-display text-xl md:text-2xl uppercase font-black">10-Band Equalizer</h3>
          </div>
          
          <div className="brutal-card p-8 md:p-12 bg-cream-warm">
@@ -131,13 +138,13 @@ const SettingsView: React.FC = () => {
       <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
            <Volume2 className="w-6 h-6 text-crimson" />
-           <h3 className="font-display text-2xl uppercase italic font-black">Playback</h3>
+           <h3 className="font-display text-2xl uppercase font-black">Playback</h3>
          </div>
          
          <div className="grid gap-6 md:gap-8">
             <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
                <div className="space-y-2">
-                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Gapless Playback</div>
+                  <div className="font-display text-xl md:text-2xl uppercase font-black leading-tight">Gapless Playback</div>
                   <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Seamless Transitions</div>
                </div>
                <div 
@@ -150,7 +157,7 @@ const SettingsView: React.FC = () => {
 
             <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
                <div className="space-y-2">
-                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Normalization</div>
+                  <div className="font-display text-xl md:text-2xl uppercase font-black leading-tight">Normalization</div>
                   <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Consistent Volume Floor</div>
                </div>
                <div 
@@ -163,24 +170,50 @@ const SettingsView: React.FC = () => {
          </div>
       </section>
 
+      <section className="space-y-6">
+         <div className="flex items-center gap-4 border-b-2 border-ink pb-3">
+           <Type className="w-5 h-5 text-crimson" />
+           <h3 className="font-display text-xl uppercase font-black tracking-tight">Typography</h3>
+         </div>
+         
+         <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+            {[
+              { id: 'default', name: 'Inter', class: 'theme-font-default' },
+              { id: 'serif', name: 'Playfair', class: 'theme-font-serif' },
+              { id: 'modern', name: 'Outfit', class: 'theme-font-modern' },
+              { id: 'condensed', name: 'Grotesk', class: 'theme-font-condensed' },
+              { id: 'display', name: 'Bebas', class: 'theme-font-display' },
+            ].map(font => (
+              <button
+                key={font.id}
+                onClick={() => { haptic(10); onFontThemeChange(font.id); }}
+                className={`flex flex-col items-center justify-center py-2 px-1 brutal-card aspect-square ${font.class} ${fontTheme === font.id ? 'bg-crimson text-cream border-ink shadow-none translate-x-0.5 translate-y-0.5' : 'bg-cream text-ink'}`}
+              >
+                <div className="text-lg md:text-xl font-black leading-none mb-1">Aa</div>
+                <div className="text-[6px] md:text-[8px] uppercase font-black tracking-tighter opacity-80">{font.name}</div>
+              </button>
+            ))}
+         </div>
+      </section>
+
       <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
            <Monitor className="w-6 h-6 text-crimson" />
-           <h3 className="font-display text-2xl uppercase italic font-black">Interface</h3>
+           <h3 className="font-display text-2xl uppercase font-black">Interface</h3>
          </div>
          
          <div className="grid gap-6 md:gap-8">
             <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
                <div className="space-y-2">
-                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Brutalist Shadows</div>
+                  <div className="font-display text-xl md:text-2xl uppercase font-black leading-tight">Brutalist Shadows</div>
                   <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">High-Offset Visual Depth</div>
                </div>
-               <div className="brutal-btn p-1.5 px-5 text-[10px] font-black italic">ALWAYS ON</div>
+               <div className="brutal-btn p-1.5 px-5 text-[10px] font-black">ALWAYS ON</div>
             </div>
 
             <div className="flex items-center justify-between brutal-card p-6 md:p-8 bg-cream">
                <div className="space-y-2">
-                  <div className="font-display text-xl md:text-2xl uppercase italic font-black leading-tight">Visualizer</div>
+                  <div className="font-display text-xl md:text-2xl uppercase font-black leading-tight">Visualizer</div>
                   <div className="font-ui text-[10px] md:text-xs text-ink opacity-50 uppercase tracking-widest font-black font-bold">Real-time Spectral Wave</div>
                </div>
                <div className="w-12 h-6 bg-crimson border-2 border-ink relative cursor-pointer">
@@ -194,14 +227,14 @@ const SettingsView: React.FC = () => {
         <section className="space-y-8">
            <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
              <Search className="w-6 h-6 text-crimson" />
-             <h3 className="font-display text-2xl uppercase italic font-black">Native Scan</h3>
+             <h3 className="font-display text-2xl uppercase font-black">Native Scan</h3>
            </div>
            
            <div className="brutal-card p-6 md:p-8 bg-gold">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                  <div className="space-y-2">
-                    <h4 className="font-display text-2xl uppercase italic font-black text-ink leading-tight">Autonomous Retrieval</h4>
-                    <p className="font-serif text-sm italic text-ink/70 max-w-md">Search your local device storage for music signals and ingest them into the Piel database.</p>
+                    <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Autonomous Retrieval</h4>
+                    <p className="text-sm text-ink/70 max-w-md">Search your local device storage for music signals and ingest them into the Piel database.</p>
                  </div>
                  <button 
                    disabled={isScanning}
@@ -226,48 +259,14 @@ const SettingsView: React.FC = () => {
       )}
 
       <section className="space-y-8">
-         <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
-           <Smartphone className="w-6 h-6 text-crimson" />
-           <h3 className="font-display text-2xl uppercase italic font-black">Mobile Transmission</h3>
-         </div>
-         
-         <div className="brutal-card p-6 md:p-8 bg-gold/10">
-            <div className="flex items-start gap-6">
-               <div className="p-4 bg-gold border-4 border-ink shadow-brutal rounded-2xl hidden sm:block">
-                  <Download size={32} className="text-ink" />
-               </div>
-               <div className="flex-1 space-y-4">
-                  <h4 className="font-display text-2xl uppercase italic font-black leading-tight">Install Piel as App</h4>
-                  <p className="font-serif text-sm italic opacity-70 leading-relaxed">Piel is a Progressive Web App. You can install it directly onto your mobile device for an APK-like experience with full offline support.</p>
-                  
-                  <div className="space-y-3">
-                     <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">1</div>
-                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Open this page on your mobile browser</p>
-                     </div>
-                     <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">2</div>
-                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Select "Add to Home Screen" from menu</p>
-                     </div>
-                     <div className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">3</div>
-                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Launch Piel from your app drawer</p>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </div>
-      </section>
-
-      <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-2 border-ink pb-4 text-crimson">
            <Trash2 className="w-6 h-6" />
-           <h3 className="font-display text-2xl uppercase italic font-black">Destruction</h3>
+           <h3 className="font-display text-2xl uppercase font-black">Destruction</h3>
          </div>
          
          <div className="brutal-card p-8 md:p-12 border-crimson border-4 bg-crimson/5">
-            <h4 className="font-display text-2xl md:text-3xl mb-4 text-crimson uppercase italic font-black">Purge Library State</h4>
-            <p className="font-serif text-base italic mb-10 opacity-70 leading-relaxed">Wipe all analysed metadata, ratings, and play history from this device. Piel's sonic memory will be erased reset to a zero state.</p>
+            <h4 className="font-display text-2xl md:text-3xl mb-4 text-crimson uppercase font-black">Purge Library State</h4>
+            <p className="text-base mb-10 opacity-70 leading-relaxed">Wipe all analysed metadata, ratings, and play history from this device. Piel's sonic memory will be erased reset to a zero state.</p>
             
             {confirmClear ? (
               <div className="flex gap-4">

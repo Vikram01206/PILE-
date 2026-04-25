@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X } from 'lucide-react';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
+import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc } from 'lucide-react';
 import { Song, Playlist } from '../types';
-import { parseSongFile, scanDirectory } from '../lib/libraryScanner';
+import { parseSongFile, scanDirectory, scanLocalDirectory } from '../lib/libraryScanner';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
 
@@ -22,7 +22,7 @@ const MenuAction: React.FC<{
 }> = ({ icon: Icon, label, onClick, active, variant = 'default' }) => (
   <button 
     onClick={(e) => { e.stopPropagation(); onClick(); }}
-    className={`w-full flex items-center gap-3 px-3 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-cream-dark transition-colors ${variant === 'danger' ? 'text-crimson' : active ? 'text-gold' : 'text-ink'}`}
+    className={`w-full flex items-center gap-3 px-3 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-ink/5 transition-colors ${variant === 'danger' ? 'text-crimson' : active ? 'text-gold' : 'text-ink'}`}
   >
     <Icon className="w-3 h-3" />
     <span>{label}</span>
@@ -56,24 +56,31 @@ const SongListItem: React.FC<{
   setShowPlaylistPicker,
   formatDuration
 }) => {
-  const [isSwiping, setIsSwiping] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
+  const x = useMotionValue(0);
+  const thresholdReached = useRef(false);
+  
+  // Transform drag distance into visual feedback
+  const bgColor = useTransform(x, [0, 80], ['rgba(26, 10, 13, 0.05)', 'rgba(220, 38, 38, 1)']);
+  const iconScale = useTransform(x, [0, 80], [0.8, 1.2]);
+  const iconOpacity = useTransform(x, [0, 80], [0, 1]);
+  const bgOpacity = useTransform(x, [0, 20], [0, 1]);
 
   return (
     <div className={`relative group mb-5 ${activeMenu === song.id ? 'z-[60]' : 'z-auto'}`}>
       {/* Swipe Background */}
-      <div className={`absolute inset-0 flex items-center px-6 text-white transition-all duration-300 rounded-xl overflow-hidden ${isSwiping ? 'bg-crimson shadow-inner' : 'bg-ink/5 opacity-0'}`}>
+      <motion.div 
+        style={{ backgroundColor: bgColor, opacity: bgOpacity }}
+        className="absolute inset-0 flex items-center px-6 text-white rounded-xl overflow-hidden pointer-events-none"
+      >
          <motion.div 
            className="flex items-center gap-2"
-           animate={{
-             scale: isSwiping ? 1.1 : 0.9,
-             opacity: isSwiping ? 1 : 0
-           }}
+           style={{ scale: iconScale, opacity: iconOpacity }}
          >
            <Plus size={18} strokeWidth={3} />
            <span className="font-ui text-[10px] font-black uppercase tracking-[0.2em]">Add to Queue</span>
          </motion.div>
-      </div>
+      </motion.div>
 
       {/* Added Confirmation Overlay */}
       <AnimatePresence>
@@ -85,7 +92,7 @@ const SongListItem: React.FC<{
             className="absolute inset-0 z-20 bg-gold flex items-center justify-center gap-2 pointer-events-none rounded-xl border-2 border-ink"
           >
             <Plus size={16} strokeWidth={4} />
-            <span className="font-display text-xs font-black uppercase italic">Signal Added to Sequence</span>
+            <span className="font-display text-xs font-black uppercase">Signal Added to Sequence</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -95,29 +102,34 @@ const SongListItem: React.FC<{
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.02 }}
         drag="x"
+        style={{ x }}
         dragDirectionLock
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={{ left: 0, right: 0.7 }}
+        dragConstraints={{ left: 0, right: 150 }}
+        dragElastic={0.1}
         dragSnapToOrigin
-        onDrag={(e, info) => {
-          if (info.offset.x > 80) {
-            if (!isSwiping) haptic(5);
-            setIsSwiping(true);
-          } else {
-            setIsSwiping(false);
+        onDrag={(_, info) => {
+          // Subtle haptic when threshold crossed
+          if (info.offset.x > 100 && !thresholdReached.current) {
+            haptic(5);
+            thresholdReached.current = true;
+          } else if (info.offset.x <= 100 && thresholdReached.current) {
+            thresholdReached.current = false;
           }
         }}
         onDragEnd={(_, info) => {
-          if (info.offset.x > 80) {
+          thresholdReached.current = false;
+          if (info.offset.x > 100) {
             addToQueue(song.id);
             haptic([10, 5, 10]);
             setJustAdded(true);
             setTimeout(() => setJustAdded(false), 2000);
           }
-          setIsSwiping(false);
         }}
         onDoubleClick={() => handlePlay(song, currentSongs.map(s => s.id))}
         onClick={() => { 
+          // Only trigger click if it wasn't a significant drag
+          if (Math.abs(x.get()) > 10) return;
+          
           if (activeMenu === song.id) {
             setActiveMenu(null);
             return;
@@ -133,14 +145,14 @@ const SongListItem: React.FC<{
         </div>
         <div className="flex-1 flex items-center gap-3 min-w-0">
            <div className="w-10 h-10 md:w-12 md:h-12 border-2 border-ink bg-ink overflow-hidden flex-shrink-0">
-              {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-display text-[10px] text-cream opacity-20">P</div>}
+              {song.picture ? <img src={song.picture} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center bg-cream-dark text-ink/20"><Music size={12} strokeWidth={3} /></div>}
            </div>
            <div className="min-w-0">
-             <div className="font-display text-sm md:text-base font-black italic uppercase leading-none truncate tracking-tight">{song.title}</div>
+             <div className="font-display text-sm md:text-base font-black uppercase leading-none truncate tracking-tight">{song.title}</div>
              <div className="font-ui text-[9px] md:text-[10px] font-bold text-ink opacity-40 truncate uppercase tracking-widest mt-1">{song.artist}</div>
            </div>
         </div>
-        <div className="flex-1 hidden md:block font-serif text-sm italic text-ink-muted truncate pr-4">
+        <div className="flex-1 hidden md:block font-serif text-sm text-ink-muted truncate pr-4">
           {song.album}
         </div>
         <div className="w-20 md:w-24 text-right font-numeric text-[10px] md:text-xs text-ink font-bold opacity-60">
@@ -205,22 +217,52 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
     if (onPlay) onPlay();
   };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleScanning = async () => {
+    setIsScanning(true);
+    try {
+      let newSongs: Song[] = [];
+      
+      // Try Native Scanner First if on mobile
+      const { isNative, scanNativeMusic } = await import('../lib/nativeScanner');
+      if (await isNative()) {
+        newSongs = await scanNativeMusic();
+      } else if ('showDirectoryPicker' in window) {
+        // Use File System Access API on Desktop
+        newSongs = await scanLocalDirectory();
+      } else {
+        // Fallback to hidden folder input
+        folderInputRef.current?.click();
+        return;
+      }
+
+      if (newSongs.length > 0) {
+        for (const song of newSongs) {
+          await db.saveSong(song);
+        }
+        onRefresh();
+      }
+    } catch (err) {
+      console.error('Scan failed:', err);
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || isScanning) return;
     setIsScanning(true);
     try {
-      console.log(`Piel Engine: Indexing ${e.target.files.length} signals...`);
-      const newSongs = await scanDirectory(e.target.files);
-      console.log(`Piel Engine: Identified ${newSongs.length} valid audio paths.`);
+      const filesArray = Array.from(e.target.files) as File[];
+      const newSongs = await scanDirectory(filesArray);
       for (const song of newSongs) {
         await db.saveSong(song);
       }
       onRefresh();
     } catch (err) {
-      console.error('Piel Engine: Scanning aborted due to unexpected signal interference.', err);
+      console.error('Piel Engine: Scanning aborted.', err);
     } finally {
       setIsScanning(false);
-      if (e.target) e.target.value = ''; // Reset input
+      e.target.value = ''; 
     }
   };
 
@@ -230,10 +272,48 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
     return `${min}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const currentSongs = songs.filter(s => {
-    if (screen === 'favorites') return s.liked === true || s.rating === 5;
+  const [libraryTab, setLibraryTab] = useState<'folders' | 'songs' | 'recent' | 'liked'>(
+    screen === 'folders' ? 'folders' : (screen === 'favorites' ? 'liked' : 'songs')
+  );
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveMenu(null);
+    setSelectedFolder(null);
+    if (screen === 'home') setLibraryTab('songs');
+    else if (screen === 'folders') setLibraryTab('folders');
+    else if (screen === 'favorites') setLibraryTab('liked');
+    else setLibraryTab('songs');
+  }, [screen]);
+
+  const getFolder = (song: Song) => {
+    if (song.nativePath && song.nativePath.includes('/')) {
+      const parts = song.nativePath.split('/');
+      return parts[parts.length - 2];
+    }
+    return 'Music';
+  };
+
+  const filteredSongs = songs.filter(s => {
+    if (selectedFolder) return getFolder(s) === selectedFolder;
+    if (libraryTab === 'liked') return s.liked === true || s.rating === 5;
+    if (libraryTab === 'recent') return true; 
     return true;
   });
+
+  const getScreenTitle = () => {
+    if (selectedFolder) return selectedFolder;
+    if (libraryTab === 'folders') return 'Scanner';
+    if (libraryTab === 'liked' || screen === 'favorites') return 'Liked';
+    if (screen === 'home') return 'Home';
+    return 'Library';
+  };
+
+  const folders = Array.from(new Set(songs.map(s => getFolder(s)))) as string[];
+  const folderCounts = folders.reduce((acc, folder: string) => {
+    acc[folder] = songs.filter(s => getFolder(s) === folder).length;
+    return acc;
+  }, {} as Record<string, number>);
 
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [showPlaylistPicker, setShowPlaylistPicker] = useState<string | null>(null);
@@ -282,7 +362,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
   };
 
   return (
-    <div className="p-4 md:p-8">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto min-h-screen">
       {/* Global Backdrop for Song Menus */}
       <AnimatePresence>
         {activeMenu && (
@@ -298,99 +378,130 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
         )}
       </AnimatePresence>
 
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 md:mb-12">
-        <div className="border-l-4 border-crimson pl-4 md:pl-6">
-          <h2 className="text-4xl md:text-6xl uppercase tracking-tighter italic font-black leading-none mb-2">{screen}</h2>
-          <div className="font-ui text-[9px] md:text-[10px] text-ink opacity-60 uppercase font-bold tracking-[0.4em]">
-            {currentSongs.length} REGISTERED TRACKS
+      {/* Redesigned Header to match Image */}
+      <div className="flex justify-between items-start mb-6 md:mb-8 px-1">
+        <div className="flex gap-3 md:gap-4">
+          <div className="space-y-0.5">
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase">
+              {getScreenTitle()}
+            </h2>
+            <div className="text-crimson font-black text-[8px] md:text-[9px] uppercase tracking-[0.2em] leading-none opacity-80">
+              {screen === 'folders' ? 'Deep System Analysis' : 'Your Personal High-Fidelity Stream'}
+            </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 md:gap-6">
-          {(screen === 'home' || screen === 'folders') && (
-            <>
-              <input
-                type="file"
-                ref={folderInputRef}
-                webkitdirectory=""
-                directory=""
-                multiple
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-              <input
-                type="file"
-                ref={fileInputRef}
-                multiple
-                accept="audio/*,.mp3,.flac,.wav,.aac,.ogg,.m4a"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
-              
-              <div className="flex gap-2 w-full md:w-auto">
-                <button 
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isScanning}
-                  className="brutal-btn flex-1 md:flex-none text-xs bg-cream-warm text-ink"
-                >
-                  <Plus className="inline-block mr-2 w-3 h-3" />
-                  FILES
-                </button>
-                <button 
-                  onClick={() => folderInputRef.current?.click()}
-                  disabled={isScanning}
-                  className="brutal-btn flex-1 md:flex-none text-xs"
-                >
-                  {isScanning ? 'INDEXING...' : 'FOLDER'}
-                </button>
-              </div>
-            </>
+        <div className="flex gap-2">
+          {screen === 'folders' && (
+            <button 
+              onClick={handleScanning}
+              disabled={isScanning}
+              className={`p-2 border-2 border-ink bg-gold text-ink shadow-brutal rounded-xl hover:bg-ink hover:text-gold transition-colors active:translate-y-0.5 active:shadow-none ${isScanning ? 'animate-pulse opacity-50' : ''}`}
+              title="System Scan"
+            >
+               <Upload size={18} strokeWidth={2.5} />
+            </button>
           )}
-          
-          <div className="flex border-2 border-ink brutal-shadow bg-cream overflow-hidden">
-             {[
-               { id: 'list', icon: List },
-               { id: 'grid', icon: LayoutGrid },
-               { id: 'compact', icon: Grid }
-             ].map(({ id, icon: Icon }) => (
-               <button
-                 key={id}
-                 onClick={() => setViewMode(id as any)}
-                 className={`p-2.5 md:p-3 transition-colors ${viewMode === id ? 'bg-crimson text-white' : 'hover:bg-cream-dark text-ink'}`}
-               >
-                 <Icon className="w-4 h-4 md:w-5 md:h-5" />
-               </button>
-             ))}
-          </div>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleFileUpload} 
+            multiple 
+            className="hidden" 
+            accept="audio/*"
+          />
+          <input 
+            type="file" 
+            ref={folderInputRef} 
+            onChange={handleFileUpload} 
+            className="hidden" 
+            {...({ webkitdirectory: "", directory: "" } as any)}
+          />
+          <button className="p-2 border-2 border-ink bg-cream shadow-brutal rounded-xl hover:bg-gold transition-colors active:translate-y-0.5 active:shadow-none transition-all">
+             <Filter size={18} strokeWidth={2.5} />
+          </button>
         </div>
       </div>
 
-      {currentSongs.length === 0 ? (
-        <div className="h-64 border-2 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center">
-          <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
-          <p className="font-display text-xl mb-4 text-ink-muted uppercase">Your library is skin and bones.</p>
-          <button onClick={() => folderInputRef.current?.click()} className="brutal-btn uppercase text-xs">Begin Deep Scan (Folder)</button>
-          <button onClick={() => fileInputRef.current?.click()} className="mt-4 font-ui text-[10px] uppercase font-bold text-crimson hover:underline">Or Select Individual Files</button>
+      {/* Tabs matching Image */}
+      <div className="flex gap-2 overflow-x-auto pb-4 mb-6 no-scrollbar">
+         {[
+           { id: 'folders', label: 'FOLDERS' },
+           { id: 'songs', label: 'ALL MUSIC' },
+           { id: 'recent', label: 'RECENT' },
+           { id: 'liked', label: 'LIKED' },
+         ].map(tab => (
+           <button
+             key={tab.id}
+             onClick={() => { haptic(15); setLibraryTab(tab.id as any); setSelectedFolder(null); }}
+             className={`px-5 py-1.5 border-2 border-ink rounded-full font-bold text-[10px] uppercase tracking-widest whitespace-nowrap shadow-brutal transition-all active:translate-y-0.5 active:shadow-none ${libraryTab === tab.id ? 'bg-crimson text-cream' : 'bg-cream text-ink'}`}
+           >
+             {tab.label}
+           </button>
+         ))}
+      </div>
+
+      {!selectedFolder && libraryTab === 'folders' ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
+           {folders.length === 0 ? (
+             <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
+               <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
+               <p className="font-display text-xl mb-4 text-ink-muted uppercase">Scanning for local frequencies...</p>
+               <button 
+                 onClick={handleScanning} 
+                 disabled={isScanning}
+                 className={`brutal-btn uppercase text-xs ${isScanning ? 'opacity-50' : ''}`}
+               >
+                 {isScanning ? 'Analyzing...' : 'Deep Scan'}
+               </button>
+             </div>
+           ) : (
+             folders.map(folder => (
+               <motion.button
+                 key={folder}
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 whileHover={{ x: 4 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { haptic(20); setSelectedFolder(folder); }}
+                 className="w-full brutal-card p-2 md:p-3 flex items-center gap-3 md:gap-4 bg-cream hover:bg-gold transition-colors group text-left relative overflow-hidden"
+               >
+                  <div className="w-12 h-10 md:w-14 md:h-12 bg-crimson border-2 border-ink shadow-brutal rounded-xl flex items-center justify-center shrink-0">
+                     <LayoutGrid className="w-5 h-5 md:w-6 md:h-6 text-cream" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                     <h4 className="font-serif text-xl md:text-2xl font-black text-ink leading-none truncate">{folder}</h4>
+                     <p className="text-crimson font-bold text-[8px] md:text-[9px] uppercase tracking-widest mt-1 opacity-80">{folderCounts[folder]} SIGNALS DETECTED</p>
+                  </div>
+                  <ChevronRight size={16} className="text-ink opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" strokeWidth={3} />
+                  
+                  {/* Decorative line matching the style */}
+                  <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-ink opacity-5" />
+               </motion.button>
+             ))
+           )}
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Header Row */}
-          <div className="flex items-center px-4 py-2 font-mono text-[9px] md:text-[10px] text-ink-muted tracking-widest uppercase border-b-2 border-ink mb-4">
-             <div className="w-8 md:w-12 text-center">#</div>
-             <div className="flex-1">Title & Artist</div>
-             <div className="flex-1 hidden md:block">Album</div>
-             <div className="w-20 md:w-24 text-right">Duration</div>
-             <div className="w-32 text-center hidden lg:block">Rating</div>
-             <div className="w-8 md:w-12"></div>
-          </div>
-
-          {currentSongs.map((song, i) => (
+          {selectedFolder && (
+            <div className="flex items-center gap-4 mb-6">
+               <button 
+                 onClick={() => setSelectedFolder(null)}
+                 className="p-2 border-2 border-ink bg-ink text-cream rounded-lg"
+               >
+                 <X size={16} />
+               </button>
+               <h3 className="text-2xl font-black uppercase text-crimson">{selectedFolder}</h3>
+            </div>
+          )}
+          
+          {filteredSongs.map((song, i) => (
             <SongListItem 
               key={song.id}
               song={song}
               index={i}
               handlePlay={handlePlay}
-              currentSongs={currentSongs}
+              currentSongs={filteredSongs}
               toggleLike={toggleLike}
               addToQueue={addToQueue}
               haptic={haptic}
@@ -401,6 +512,13 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
               formatDuration={formatDuration}
             />
           ))}
+          {filteredSongs.length === 0 && (
+            <div className="py-20 border-2 border-dashed border-ink/20 flex flex-col items-center justify-center opacity-30 rounded-2xl">
+               <Music2 size={48} className="mb-4" />
+               <p className="font-display text-xl uppercase font-black">Signals Not Found</p>
+               <p className="font-ui text-[10px] uppercase tracking-widest mt-2">Adjust scan parameters or refresh index.</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -422,7 +540,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
               className="relative w-full max-w-sm bg-cream border-4 border-ink shadow-heavy p-6 rounded-2xl"
             >
               <div className="flex items-center justify-between mb-6 border-b-2 border-ink pb-2">
-                <h3 className="font-display text-2xl uppercase italic font-black">Add to Collection</h3>
+                <h3 className="font-display text-2xl uppercase font-black">Add to Collection</h3>
                 <button 
                   onClick={() => setShowNewPlaylistInput(!showNewPlaylistInput)}
                   className={`p-2 border-2 border-ink transition-colors rounded-lg ${showNewPlaylistInput ? 'bg-crimson text-white' : 'bg-gold text-ink'}`}
@@ -463,7 +581,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
                     </button>
                   ))}
                   {playlists.length === 0 && (
-                    <p className="text-center py-8 font-serif italic text-ink/40">No collections registered.</p>
+                    <p className="text-center py-8 font-serif text-ink/40">No collections registered.</p>
                   )}
                 </div>
               )}
