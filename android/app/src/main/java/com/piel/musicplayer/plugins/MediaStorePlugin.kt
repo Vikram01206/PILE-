@@ -13,37 +13,37 @@ class MediaStorePlugin : Plugin() {
 
     @PluginMethod
     fun getAudioFiles(call: PluginCall) {
-        Log.d("MediaStorePlugin", "Query started")
+        Log.d("MediaStorePlugin", "Query started using MediaStore.Files")
         val resolver = context.contentResolver
-        val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        val uri = MediaStore.Files.getContentUri("external")
 
         val projection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.Q) {
             arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.DISPLAY_NAME,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM,
-                MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.SIZE,
-                MediaStore.Audio.Media.RELATIVE_PATH
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.MEDIA_TYPE,
+                MediaStore.Files.FileColumns.RELATIVE_PATH,
+                MediaStore.Files.FileColumns.SIZE
             )
         } else {
             arrayOf(
-                MediaStore.Audio.Media._ID,
-                MediaStore.Audio.Media.DISPLAY_NAME,
-                MediaStore.Audio.Media.ARTIST,
-                MediaStore.Audio.Media.ALBUM,
-                MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.SIZE
+                MediaStore.Files.FileColumns._ID,
+                MediaStore.Files.FileColumns.DISPLAY_NAME,
+                MediaStore.Files.FileColumns.MEDIA_TYPE,
+                MediaStore.Files.FileColumns.SIZE,
+                MediaStore.Files.FileColumns.TITLE
             )
         }
+
+        val selection = "${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?"
+        val selectionArgs = arrayOf(MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO.toString())
 
         val cursor = resolver.query(
             uri,
             projection,
-            null,
-            null,
-            MediaStore.Audio.Media.DATE_ADDED + " DESC"
+            selection,
+            selectionArgs,
+            "${MediaStore.Files.FileColumns.DATE_ADDED} DESC"
         )
         Log.d("MediaStorePlugin", "Cursor object: $cursor")
         Log.d("MediaStorePlugin", "Row count: ${cursor?.count ?: 0}")
@@ -57,13 +57,10 @@ class MediaStorePlugin : Plugin() {
         val result = JSONArray()
 
         cursor?.use {
-            val idIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val nameIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val artistIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val durationIndex = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+            val idIndex = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+            val nameIndex = it.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
             val pathIndex = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.Q) {
-                it.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
+                it.getColumnIndex(MediaStore.Files.FileColumns.RELATIVE_PATH)
             } else {
                 -1
             }
@@ -72,13 +69,13 @@ class MediaStorePlugin : Plugin() {
                 Log.d("MediaStorePlugin", "Reading row...")
                 val obj = JSONObject()
                 val id = it.getLong(idIndex)
-                val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
+                val contentUri = ContentUris.withAppendedId(uri, id)
 
                 obj.put("uri", contentUri.toString())
                 obj.put("name", it.getString(nameIndex))
-                obj.put("artist", it.getString(artistIndex))
-                obj.put("album", it.getString(albumIndex))
-                obj.put("duration", it.getLong(durationIndex))
+                obj.put("artist", "Unknown Artist")
+                obj.put("album", "Unknown Album")
+                obj.put("duration", 0L)
                 
                 if (pathIndex != -1) {
                     obj.put("path", it.getString(pathIndex))
