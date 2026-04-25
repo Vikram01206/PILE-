@@ -260,6 +260,26 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
                  <div className="space-y-2">
                     <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Autonomous Retrieval</h4>
                     <p className="text-sm text-ink/70 max-w-md">Search your local device storage for music signals and ingest them into the Piel database.</p>
+                    <div className="flex gap-4 mt-2">
+                      <button 
+                        onClick={async () => {
+                          const { openSettings } = await import('../lib/nativeScanner');
+                          openSettings();
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-widest text-crimson underline cursor-pointer"
+                      >
+                        App Settings
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          const { openAllFilesAccess } = await import('../lib/nativeScanner');
+                          openAllFilesAccess();
+                        }}
+                        className="text-[10px] font-bold uppercase tracking-widest text-crimson underline cursor-pointer"
+                      >
+                        Storage Access
+                      </button>
+                    </div>
                  </div>
                  <button 
                    disabled={isScanning}

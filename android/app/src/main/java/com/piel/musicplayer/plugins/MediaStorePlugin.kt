@@ -22,15 +22,11 @@ import org.json.JSONObject
     permissions = [
         Permission(
             alias = "audio",
-            strings = [
-                Manifest.permission.READ_MEDIA_AUDIO
-            ]
+            strings = [ Manifest.permission.READ_MEDIA_AUDIO ]
         ),
         Permission(
-            alias = "storage",
-            strings = [
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            ]
+            alias = "legacy_storage",
+            strings = [ Manifest.permission.READ_EXTERNAL_STORAGE ]
         )
     ]
 )
@@ -39,15 +35,14 @@ class MediaStorePlugin : Plugin() {
     @PluginMethod
     fun checkPermissions(call: PluginCall) {
         val result = JSObject()
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.TIRAMISU) {
-            val audio = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
-            result.put("audio", if (audio) "granted" else "prompt")
-            result.put("storage", "granted") // Storage is legacy on 13+
+        val hasAudio = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_AUDIO) == PackageManager.PERMISSION_GRANTED
         } else {
-            val storage = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-            result.put("storage", if (storage) "granted" else "prompt")
-            result.put("audio", "granted") // Audio is legacy or included in storage on <13
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
         }
+        
+        result.put("audio", if (hasAudio) "granted" else "prompt")
+        result.put("storage", if (hasAudio) "granted" else "prompt")
         call.resolve(result)
     }
 
@@ -56,7 +51,7 @@ class MediaStorePlugin : Plugin() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.TIRAMISU) {
             requestPermissionForAlias("audio", call, "permissionCallback")
         } else {
-            requestPermissionForAlias("storage", call, "permissionCallback")
+            requestPermissionForAlias("legacy_storage", call, "permissionCallback")
         }
     }
 

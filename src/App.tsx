@@ -17,6 +17,7 @@ import { isNative, scanNativeMusic, getMediaStoreSongs } from './lib/nativeScann
 import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem } from '@capacitor/filesystem';
+import { App as CapacitorApp } from '@capacitor/app';
 import NowPlaying from './components/NowPlaying';
 import Library from './components/Library';
 import PlaylistManager from './components/PlaylistManager';
@@ -75,6 +76,48 @@ const AppContent: React.FC = () => {
     };
     loadSongs();
   }, []);
+
+  useEffect(() => {
+    const handleOpenWith = async (url: string) => {
+      console.log('Piel Engine: Processing open-with request for:', url);
+      // Create a temporary song object for external files
+      const fileName = url.split('/').pop() || 'External Signature';
+      const tempSong: Song = {
+        id: `external-${Date.now()}`,
+        title: fileName.replace(/\.[^/.]+$/, ""),
+        artist: 'External Signal',
+        album: 'Direct Feed',
+        duration: 0,
+        addedAt: Date.now(),
+        playCount: 0,
+        nativePath: url,
+        folderPath: 'External',
+        data: new File([], fileName),
+        url: url
+      };
+      
+      playSong(tempSong);
+      if (window.innerWidth < 768) {
+        setIsPlayerExpanded(true);
+      }
+    };
+
+    if (Capacitor.isNativePlatform()) {
+      CapacitorApp.getLaunchUrl().then(ret => {
+        if (ret && ret.url) {
+          handleOpenWith(ret.url);
+        }
+      });
+
+      const listener = CapacitorApp.addListener('appUrlOpen', data => {
+        handleOpenWith(data.url);
+      });
+
+      return () => {
+        listener.remove();
+      };
+    }
+  }, [playSong]);
 
   useEffect(() => {
     const initNativePermissions = async () => {
