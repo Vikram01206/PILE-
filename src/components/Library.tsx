@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
-import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc } from 'lucide-react';
+import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc, FolderPlus } from 'lucide-react';
 import { Song, Playlist } from '../types';
 import { parseSongFile, scanDirectory } from '../lib/libraryScanner';
 import { db } from '../lib/db';
@@ -488,70 +488,94 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
       )}
 
       {!isLoading && !selectedFolder && libraryTab === 'folders' ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto px-1">
            {folders.length === 0 ? (
-             <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
-               <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
-               <p className="font-display text-xl mb-2 text-ink-muted uppercase">
-                 {isScanning ? `Analyzing ${scanProgress} Signals...` : 'Scanning for local frequencies...'}
-               </p>
+             <div className="col-span-full h-80 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
+               <Music className="w-16 h-16 text-crimson mb-4 opacity-50" strokeWidth={1} />
+               <h3 className="font-black uppercase tracking-tighter text-xl mb-2">
+                 {isScanning ? `Analyzing ${scanProgress} Signals...` : 'No audio signals detected'}
+               </h3>
+               {!isScanning && (
+                 <>
+                   <p className="font-ui text-zinc-500 text-[11px] uppercase tracking-wide mb-6 max-w-sm text-center">
+                     The MediaStore query returned empty. This can happen on modern Android devices with restricted storage access.
+                   </p>
+                   <div className="flex flex-col gap-3 w-full max-w-xs">
+                     <button 
+                      onClick={async () => {
+                         const { pickAndScanFolder } = await import('../lib/nativeScanner');
+                         const newSongs = await pickAndScanFolder();
+                         if (newSongs.length > 0) {
+                           for (const song of newSongs) {
+                             await db.saveSong(song);
+                           }
+                           onRefresh();
+                         }
+                      }}
+                      className="px-8 py-3 bg-crimson text-cream border-2 border-ink shadow-brutal rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-ink transition-all active:translate-y-0.5 active:shadow-none"
+                     >
+                       Select Music Folder
+                     </button>
+                     <button 
+                      onClick={handleScanning}
+                      className="px-8 py-2 bg-cream text-ink border-2 border-ink shadow-brutal rounded-xl font-black uppercase text-[10px] hover:bg-zinc-100 transition-all active:translate-y-0.5 active:shadow-none"
+                     >
+                       Try Deep System Scan
+                     </button>
+                   </div>
+                 </>
+               )}
                {scanError && !isScanning && (
-                  <p className="font-ui text-[10px] text-crimson uppercase font-black tracking-widest mb-4 transition-all animate-in fade-in slide-in-from-bottom-2">
+                  <p className="font-ui text-[10px] text-crimson uppercase font-black tracking-widest mt-4">
                     Error: {scanError}
                   </p>
                )}
-               {isScanning && currentFile && (
-                 <p className="font-ui text-[10px] uppercase tracking-widest mb-6 opacity-40 animate-pulse truncate w-full max-w-xs">{currentFile}</p>
-               )}
-               
-               <div className="flex flex-col gap-3 w-full max-w-xs">
-                 <button 
-                   onClick={handleScanning} 
-                   disabled={isScanning}
-                   className={`brutal-btn uppercase text-xs w-full ${isScanning ? 'opacity-50' : ''}`}
-                 >
-                   {isScanning ? 'System Active' : 'Deep Scan'}
-                 </button>
-
-                 {scanError?.includes('All Files Access') && !isScanning && (
-                   <button 
-                     onClick={async () => {
-                       const { openAllFilesAccess } = await import('../lib/nativeScanner');
-                       await openAllFilesAccess();
-                     }}
-                     className="brutal-btn !bg-gold !text-ink uppercase text-[10px] py-2 w-full"
-                   >
-                     Enable Full Access
-                   </button>
-                 )}
-               </div>
              </div>
            ) : (
-             folders.map(folder => (
-               <motion.button
-                 key={folder}
-                 initial={{ opacity: 0, y: 20 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 whileHover={{ x: 4 }}
-                 whileTap={{ scale: 0.98 }}
-                 onClick={() => { haptic(20); setSelectedFolder(folder); }}
-                 className="w-full brutal-card p-2 md:p-3 flex items-center gap-3 md:gap-4 bg-cream hover:bg-gold transition-colors group text-left relative overflow-hidden"
+             <>
+               {folders.map(folder => (
+                 <motion.button
+                   key={folder}
+                   initial={{ opacity: 0, y: 20 }}
+                   animate={{ opacity: 1, y: 0 }}
+                   whileHover={{ x: 4 }}
+                   whileTap={{ scale: 0.98 }}
+                   onClick={() => { haptic(20); setSelectedFolder(folder); }}
+                   className="w-full brutal-card p-2 md:p-3 flex items-center gap-3 md:gap-4 bg-cream hover:bg-gold transition-colors group text-left relative overflow-hidden"
+                 >
+                    <div className="w-12 h-10 md:w-14 md:h-12 bg-crimson border-2 border-ink shadow-brutal rounded-xl flex items-center justify-center shrink-0">
+                       <LayoutGrid className="w-5 h-5 md:w-6 md:h-6 text-cream" strokeWidth={2.5} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                       <h4 className="font-serif text-xl md:text-2xl font-black text-ink leading-none truncate">{folder}</h4>
+                       <p className="text-crimson font-bold text-[8px] md:text-[9px] uppercase tracking-widest mt-1 opacity-80">{folderCounts[folder]} SIGNALS DETECTED</p>
+                    </div>
+                    <ChevronRight size={16} className="text-ink opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" strokeWidth={3} />
+                    
+                    {/* Decorative line matching the style */}
+                    <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-ink opacity-5" />
+                 </motion.button>
+               ))}
+               
+               <button 
+                onClick={async () => {
+                   const { pickAndScanFolder } = await import('../lib/nativeScanner');
+                   const newSongs = await pickAndScanFolder();
+                   if (newSongs.length > 0) {
+                     for (const song of newSongs) {
+                       await db.saveSong(song);
+                     }
+                     onRefresh();
+                   }
+                }}
+                className="h-32 border-4 border-dashed border-ink/40 flex flex-col items-center justify-center bg-ink/5 p-6 text-center rounded-2xl hover:bg-gold/10 hover:border-gold transition-all group"
                >
-                  <div className="w-12 h-10 md:w-14 md:h-12 bg-crimson border-2 border-ink shadow-brutal rounded-xl flex items-center justify-center shrink-0">
-                     <LayoutGrid className="w-5 h-5 md:w-6 md:h-6 text-cream" strokeWidth={2.5} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                     <h4 className="font-serif text-xl md:text-2xl font-black text-ink leading-none truncate">{folder}</h4>
-                     <p className="text-crimson font-bold text-[8px] md:text-[9px] uppercase tracking-widest mt-1 opacity-80">{folderCounts[folder]} SIGNALS DETECTED</p>
-                  </div>
-                  <ChevronRight size={16} className="text-ink opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" strokeWidth={3} />
-                  
-                  {/* Decorative line matching the style */}
-                  <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-ink opacity-5" />
-               </motion.button>
-             ))
+                 <FolderPlus className="w-6 h-6 text-ink opacity-40 group-hover:opacity-100 group-hover:text-gold mb-2" />
+                 <span className="font-black uppercase tracking-tighter text-[10px] text-ink/60 group-hover:text-ink">Add Other Folder</span>
+               </button>
+             </>
            )}
-        </div>
+      </div>
       ) : (
         <div className="space-y-4">
           {selectedFolder && (

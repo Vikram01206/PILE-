@@ -87,6 +87,63 @@ export async function requestPermissions() {
   return 'granted';
 }
 
+export async function pickAndScanFolder(): Promise<Song[]> {
+  if (!(await isNative())) return [];
+  
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    const { Preferences } = await import('@capacitor/preferences');
+    
+    // 1. Pick the folder
+    const pickResult = await (Capacitor as any).Plugins.MediaStorePlugin.pickFolder();
+    const folderUri = pickResult.uri;
+    
+    if (!folderUri) return [];
+    
+    // 2. Save the folder URI for future scans
+    const { value } = await Preferences.get({ key: 'manual_folders' });
+    let folders: string[] = value ? JSON.parse(value) : [];
+    if (!folders.includes(folderUri)) {
+      folders.push(folderUri);
+      await Preferences.set({ key: 'manual_folders', value: JSON.stringify(folders) });
+    }
+    
+    // 3. Scan the folder
+    return await scanFolderUri(folderUri);
+  } catch (e) {
+    console.error('Piel Engine: Folder picker failed:', e);
+    return [];
+  }
+}
+
+async function scanFolderUri(uri: string): Promise<Song[]> {
+  const { Capacitor } = await import('@capacitor/core');
+  const scanResult = await (Capacitor as any).Plugins.MediaStorePlugin.scanFolder({ uri });
+  const files = scanResult.files;
+  const songs: Song[] = [];
+
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    const fileName = file.name || 'Unknown';
+    const displayPath = file.path || 'Music';
+    
+    songs.push({
+      id: `saf-${file.uri}`,
+      title: file.name && file.name.replace(/\.[^/.]+$/, "") || 'Unknown',
+      artist: file.artist || 'Unknown Artist',
+      album: file.album || 'Unknown Album',
+      duration: (file.duration || 0) / 1000,
+      addedAt: Date.now(),
+      playCount: 0,
+      nativePath: file.uri,
+      folderPath: displayPath,
+      data: new File([], fileName),
+      url: file.uri
+    });
+  }
+  return songs;
+}
+
 export async function getMediaStoreSongs(): Promise<Song[]> {
   if (!(await isNative())) return [];
   
@@ -102,9 +159,12 @@ export async function getMediaStoreSongs(): Promise<Song[]> {
 
   try {
     const { Capacitor } = await import('@capacitor/core');
+    const { Preferences } = await import('@capacitor/preferences');
+    
+    // 1. Automatic Scan
     const result = await (Capacitor as any).Plugins.MediaStorePlugin.getAudioFiles();
     const files = result.files;
-    const songs: Song[] = [];
+    let songs: Song[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -128,6 +188,26 @@ export async function getMediaStoreSongs(): Promise<Song[]> {
         url: file.uri // Use the content URI directly
       });
     }
+    
+    // 2. Manual Folders Scan
+    const { value } = await Preferences.get({ key: 'manual_folders' });
+    if (value) {
+      const folders: string[] = JSON.parse(value);
+      for (const folderUri of folders) {
+        try {
+          const folderSongs = await scanFolderUri(folderUri);
+          // Only add unique songs by URI
+          for (const s of folderSongs) {
+            if (!songs.find(existing => existing.nativePath === s.nativePath)) {
+              songs.push(s);
+            }
+          }
+        } catch (err) {
+          console.warn(`Piel Engine: Failed to scan manual folder ${folderUri}:`, err);
+        }
+      }
+    }
+
     return songs;
   } catch (e) {
     console.error('Piel Engine: MediaStore query failed:', e);

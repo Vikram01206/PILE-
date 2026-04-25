@@ -1,8 +1,12 @@
 package com.piel.musicplayer.plugins
 
 import android.content.ContentUris
+import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONArray
@@ -18,11 +22,16 @@ class MediaStorePlugin : Plugin() {
         
         val urisToQuery = mutableListOf<android.net.Uri>()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.Q) {
-            urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL))
-            urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY))
-        } else {
-            urisToQuery.add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+            try {
+                urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL))
+                urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY))
+            } catch (e: Exception) {
+                Log.w("MediaStorePlugin", "Failed to add volume-specific URIs: ${e.message}")
+            }
         }
+        
+        // Always include default
+        urisToQuery.add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
 
         val projection = mutableListOf(
             MediaStore.Audio.Media._ID,
@@ -98,5 +107,80 @@ class MediaStorePlugin : Plugin() {
         val ret = JSObject()
         ret.put("files", result)
         call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun pickFolder(call: PluginCall) {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+        startActivityForResult(call, intent, "pickFolderResult")
+    }
+
+    @ActivityCallback
+    fun pickFolderResult(call: PluginCall, result: ActivityResult) {
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val data = result.data
+            if (data != null && data.data != null) {
+                val treeUri = data.data!!
+                
+                // Persist permissions
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                context.contentResolver.takePersistableUriPermission(treeUri, takeFlags)
+                
+                val ret = JSObject()
+                ret.put("uri", treeUri.toString())
+                call.resolve(ret)
+            } else {
+                call.reject("Data is empty")
+            }
+        } else {
+            call.reject("User cancelled folder picker")
+        }
+    }
+
+    @PluginMethod
+    fun scanFolder(call: PluginCall) {
+        val folderUriString = call.getString("uri") ?: return call.reject("URI is required")
+        val folderUri = Uri.parse(folderUriString)
+        val result = JSONArray()
+        
+        try {
+            val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
+            if (rootFolder != null) {
+                scanDocumentRecursive(rootFolder, result)
+            }
+            
+            val ret = JSObject()
+            ret.put("files", result)
+            call.resolve(ret)
+        } catch (e: Exception) {
+            call.reject("Scan failed: ${e.message}")
+        }
+    }
+
+    private fun scanDocumentRecursive(dir: DocumentFile, result: JSONArray) {
+        for (file in dir.listFiles()) {
+            if (file.isDirectory) {
+                scanDocumentRecursive(file, result)
+            } else if (isAudio(file)) {
+                val obj = JSONObject()
+                obj.put("uri", file.uri.toString())
+                obj.put("name", file.name ?: "Unknown")
+                obj.put("artist", "Unknown Artist")
+                obj.put("album", "Unknown Album")
+                obj.put("duration", 0L)
+                obj.put("path", dir.name ?: "Music")
+                result.put(obj)
+            }
+        }
+    }
+
+    private fun isAudio(file: DocumentFile): Boolean {
+        val type = file.type ?: return false
+        return type.startsWith("audio/") || 
+               file.name?.endsWith(".mp3", true) == true ||
+               file.name?.endsWith(".m4a", true) == true ||
+               file.name?.endsWith(".wav", true) == true ||
+               file.name?.endsWith(".flac", true) == true
     }
 }
