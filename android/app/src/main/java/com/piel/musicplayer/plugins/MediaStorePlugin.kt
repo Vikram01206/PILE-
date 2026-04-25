@@ -2,6 +2,7 @@ package com.piel.musicplayer.plugins
 
 import android.content.ContentUris
 import android.provider.MediaStore
+import android.util.Log
 import com.getcapacitor.*
 import com.getcapacitor.annotation.CapacitorPlugin
 import org.json.JSONArray
@@ -12,6 +13,7 @@ class MediaStorePlugin : Plugin() {
 
     @PluginMethod
     fun getAudioFiles(call: PluginCall) {
+        Log.d("MediaStorePlugin", "Query started")
         val resolver = context.contentResolver
         val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 
@@ -32,14 +34,25 @@ class MediaStorePlugin : Plugin() {
                 MediaStore.Audio.Media.ARTIST,
                 MediaStore.Audio.Media.ALBUM,
                 MediaStore.Audio.Media.DURATION,
-                MediaStore.Audio.Media.SIZE,
-                MediaStore.Audio.Media.DATA
+                MediaStore.Audio.Media.SIZE
             )
         }
 
-        val selection = "${MediaStore.Audio.Media.SIZE} > 0"
+        val cursor = resolver.query(
+            uri,
+            projection,
+            null,
+            null,
+            MediaStore.Audio.Media.DATE_ADDED + " DESC"
+        )
+        Log.d("MediaStorePlugin", "Cursor object: $cursor")
+        Log.d("MediaStorePlugin", "Row count: ${cursor?.count ?: 0}")
 
-        val cursor = resolver.query(uri, projection, selection, null, null)
+        if (cursor == null) {
+            Log.d("MediaStorePlugin", "Query failed (cursor is null)")
+        } else if (cursor.count == 0) {
+            Log.d("MediaStorePlugin", "No media found (row count is 0)")
+        }
 
         val result = JSONArray()
 
@@ -52,10 +65,11 @@ class MediaStorePlugin : Plugin() {
             val pathIndex = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.Q) {
                 it.getColumnIndex(MediaStore.Audio.Media.RELATIVE_PATH)
             } else {
-                it.getColumnIndex(MediaStore.Audio.Media.DATA)
+                -1
             }
 
             while (it.moveToNext()) {
+                Log.d("MediaStorePlugin", "Reading row...")
                 val obj = JSONObject()
                 val id = it.getLong(idIndex)
                 val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
