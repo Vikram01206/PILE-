@@ -72,32 +72,41 @@ const AppContent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    const initNativeScan = async () => {
-      if (await isNative()) {
+    const initNativePermissions = async () => {
+      const isNativeApp = await isNative();
+      console.log(`Piel Engine: Platform detected - ${isNativeApp ? 'NATIVE' : 'WEB'}`);
+      
+      if (isNativeApp) {
         try {
           const { checkPermission, requestPermissions } = await import('./lib/nativeScanner');
           const pStatus = await checkPermission();
+          console.log('Piel Engine: Initial Permission Status:', pStatus);
+          
           if (pStatus !== 'granted') {
-            await requestPermissions();
+            console.log('Piel Engine: Requesting permissions on startup...');
+            const newStatus = await requestPermissions();
+            console.log('Piel Engine: Startup Permission Request Result:', newStatus);
           }
-
+          
           const { value } = await Preferences.get({ key: 'has_initial_scan' });
           if (!value) {
-            // Trigger a background scan on first launch
+            console.log('Piel Engine: No initial scan found. Triggering background scan...');
+            const { scanNativeMusic } = await import('./lib/nativeScanner');
             scanNativeMusic().then(async () => {
                await Preferences.set({ key: 'has_initial_scan', value: 'true' });
                const songs = await db.getAllSongs();
                setAllSongs(songs);
+               console.log('Piel Engine: Initial background scan completed.');
             }).catch(err => {
-               console.error('Initial background scan failed:', err);
+               console.error('Piel Engine: Initial background scan failed:', err);
             });
           }
         } catch (err) {
-          console.error('Failed to initialize native features:', err);
+          console.error('Piel Engine: Critical failure during native initialization:', err);
         }
       }
     };
-    initNativeScan();
+    initNativePermissions();
   }, []);
 
   const renderScreen = () => {

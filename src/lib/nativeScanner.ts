@@ -14,13 +14,21 @@ export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'
   
   try {
     const status = await Filesystem.checkPermissions();
-    console.log('Piel Engine: raw checkPermissions status:', status);
+    console.log('Piel Engine: raw checkPermissions status:', JSON.stringify(status));
     
-    // Check all possible fields for storage permissions
+    // Some versions of Android (13+) might report 'granted' for specific media types
+    // but capacitor-filesystem might map them to publicStorage
     const publicStorage = status.publicStorage;
     
-    if (publicStorage === 'granted') return 'granted';
-    if (publicStorage === 'denied') return 'denied';
+    if (publicStorage === 'granted') {
+      console.log('Piel Engine: Public storage permission is GRANTED');
+      return 'granted';
+    }
+    if (publicStorage === 'denied') {
+      console.log('Piel Engine: Public storage permission is DENIED');
+      return 'denied';
+    }
+    console.log('Piel Engine: Public storage permission is in PROMPT state');
   } catch (e) {
     console.error('Piel Engine: checkPermissions error:', e);
   }
@@ -30,10 +38,9 @@ export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'
 export async function requestPermissions() {
   if (await isNative()) {
     try {
-      // On Android 13+, publicStorage check might be tricky.
-      // We explicitly request the permissions we need if the plugin supports it via generic permissions
+      console.log('Piel Engine: Calling Filesystem.requestPermissions()...');
       const status = await Filesystem.requestPermissions();
-      console.log('Piel Engine: Permission status:', status);
+      console.log('Piel Engine: raw requestPermissions result:', JSON.stringify(status));
       return status.publicStorage;
     } catch (e) {
       console.error('Piel Engine: Error requesting permissions:', e);

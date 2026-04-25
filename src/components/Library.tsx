@@ -220,40 +220,54 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
   };
 
   const handleScanning = async () => {
+    console.log('Piel Engine: Scan button clicked.');
     setIsScanning(true);
     setScanProgress(0);
     try {
       let newSongs: Song[] = [];
       
       const { isNative, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
-      if (await isNative()) {
+      const isNativeApp = await isNative();
+      console.log(`Piel Engine: Scanning on platform: ${isNativeApp ? 'NATIVE' : 'WEB'}`);
+
+      if (isNativeApp) {
+        console.log('Piel Engine: Initiating native scan sequence...');
         try {
           newSongs = await scanNativeMusic((count, file) => {
             setScanProgress(count);
             if (file) setCurrentFile(file);
           });
+          console.log(`Piel Engine: Native scan found ${newSongs.length} items.`);
         } catch (err: any) {
           console.error('Piel Engine: Scanner Error:', err);
           if (err?.message?.includes('denied') || err?.message?.includes('permission')) {
-             await requestPermissions();
+             console.log('Piel Engine: Attempting emergency permission request...');
+             const status = await requestPermissions();
+             console.log('Piel Engine: Emergency permission request result:', status);
           }
           throw err;
         }
       } else if ('showDirectoryPicker' in window) {
+        console.log('Piel Engine: Initiating Desktop File System scan...');
         newSongs = await scanLocalDirectory();
       } else {
+        console.log('Piel Engine: No modern scanning API available, falling back to legacy input.');
         folderInputRef.current?.click();
         return;
       }
 
       if (newSongs.length > 0) {
+        console.log(`Piel Engine: Processing ${newSongs.length} signals for database entry...`);
         for (const song of newSongs) {
           await db.saveSong(song);
         }
         onRefresh();
+        console.log('Piel Engine: Library synched successfully.');
+      } else {
+        console.log('Piel Engine: Search completed. No new signals detected.');
       }
     } catch (err) {
-      console.error('Scan failed:', err);
+      console.error('Piel Engine: Scan failed:', err);
     } finally {
       setIsScanning(false);
       setCurrentFile('');
