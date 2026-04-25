@@ -29,8 +29,7 @@ import org.json.JSONObject
         Permission(
             alias = "storage",
             strings = [
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
+                Manifest.permission.READ_EXTERNAL_STORAGE
             ]
         )
     ]
@@ -74,8 +73,17 @@ class MediaStorePlugin : Plugin() {
         val urisToQuery = mutableListOf<android.net.Uri>()
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.Q) {
             try {
+                // Try all commonly used volume names on special ROMs like OxygenOS
                 urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL))
                 urisToQuery.add(MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY))
+                urisToQuery.add(MediaStore.Audio.Media.getContentUri("internal"))
+                
+                // Querying volume names might help
+                val volumes = MediaStore.getExternalVolumeNames(context)
+                for (volume in volumes) {
+                    Log.d("MediaStorePlugin", "Discovered volume: $volume")
+                    urisToQuery.add(MediaStore.Audio.Media.getContentUri(volume))
+                }
             } catch (e: Exception) {
                 Log.w("MediaStorePlugin", "Failed to add volume-specific URIs: ${e.message}")
             }
@@ -83,6 +91,7 @@ class MediaStorePlugin : Plugin() {
         
         // Always include default
         urisToQuery.add(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI)
+        urisToQuery.add(MediaStore.Audio.Media.INTERNAL_CONTENT_URI)
 
         val projection = mutableListOf(
             MediaStore.Audio.Media._ID,

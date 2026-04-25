@@ -154,14 +154,20 @@ async function scanFolderUri(uri: string): Promise<Song[]> {
 }
 
 export async function getMediaStoreSongs(): Promise<Song[]> {
-  if (!(await isNative())) return [];
+  if (!(await isNative())) {
+    console.log('Piel Engine: Not a native platform, skipping scan.');
+    return [];
+  }
   
   // Explicitly ensure permissions before querying MediaStore
   const pStatus = await checkPermission();
+  console.log(`Piel Engine: Permission status before scan: ${pStatus}`);
+  
   if (pStatus !== 'granted') {
     const reqStatus = await requestPermissions();
+    console.log(`Piel Engine: Requesting permissions, result: ${reqStatus}`);
     if (reqStatus !== 'granted') {
-      console.warn('Piel Engine: MediaStore access blocked by permission denial.');
+      alert("SIGNAL BLOCKED: Storage access was denied by the system.");
       return [];
     }
   }
@@ -171,8 +177,11 @@ export async function getMediaStoreSongs(): Promise<Song[]> {
     const { Preferences } = await import('@capacitor/preferences');
     
     // 1. Automatic Scan
+    console.log('Piel Engine: Initiating native query...');
     const result = await (Capacitor as any).Plugins.MediaStorePlugin.getAudioFiles();
     const files = result.files;
+    console.log(`Piel Engine: Native query returned ${files?.length || 0} files.`);
+    
     let songs: Song[] = [];
 
     for (let i = 0; i < files.length; i++) {

@@ -36,10 +36,10 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
         }
         setScanCount(songs.length);
         haptic(50);
-        alert(`Piel scan complete. Found and indexed ${songs.length} signals.`);
+        alert(`SONIC SCAN COMPLETE: Found ${songs.length} audio signatures.`);
       } else {
         // Fallback to SAF folder picker if MediaStore is empty
-        const confirmSAF = confirm("Deep system query returned 0 results. This is common on modern Android. Would you like to manually select your Music folder for indexed retrieval?");
+        const confirmSAF = confirm("DEEP SCAN: System query returned 0 results. This is common on modern Android / OnePlus. Would you like to manually select your 'Music' folder to grant direct access?");
         if (confirmSAF) {
           const { pickAndScanFolder } = await import('../lib/nativeScanner');
           const manualSongs = await pickAndScanFolder();
