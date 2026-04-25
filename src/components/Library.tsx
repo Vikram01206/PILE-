@@ -210,6 +210,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [currentFile, setCurrentFile] = useState('');
+  const [scanError, setScanError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { playSong, addToQueue, haptic } = useAudio();
@@ -223,6 +224,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
     console.log('Piel Engine: Scan button clicked.');
     setIsScanning(true);
     setScanProgress(0);
+    setScanError(null);
     try {
       let newSongs: Song[] = [];
       
@@ -245,6 +247,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
              const status = await requestPermissions();
              console.log('Piel Engine: Emergency permission request result:', status);
           }
+          setScanError(err.message);
           throw err;
         }
       } else {
@@ -263,8 +266,9 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
       } else {
         console.log('Piel Engine: Search completed. No new signals detected.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Piel Engine: Scan failed:', err);
+      setScanError(err.message || 'Scan failed due to system restriction.');
     } finally {
       setIsScanning(false);
       setCurrentFile('');
@@ -469,19 +473,39 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) =
            {folders.length === 0 ? (
              <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
                <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
-               <p className="font-display text-xl mb-4 text-ink-muted uppercase">
+               <p className="font-display text-xl mb-2 text-ink-muted uppercase">
                  {isScanning ? `Analyzing ${scanProgress} Signals...` : 'Scanning for local frequencies...'}
                </p>
+               {scanError && !isScanning && (
+                  <p className="font-ui text-[10px] text-crimson uppercase font-black tracking-widest mb-4 transition-all animate-in fade-in slide-in-from-bottom-2">
+                    Error: {scanError}
+                  </p>
+               )}
                {isScanning && currentFile && (
                  <p className="font-ui text-[10px] uppercase tracking-widest mb-6 opacity-40 animate-pulse truncate w-full max-w-xs">{currentFile}</p>
                )}
-               <button 
-                 onClick={handleScanning} 
-                 disabled={isScanning}
-                 className={`brutal-btn uppercase text-xs ${isScanning ? 'opacity-50' : ''}`}
-               >
-                 {isScanning ? 'System Active' : 'Deep Scan'}
-               </button>
+               
+               <div className="flex flex-col gap-3 w-full max-w-xs">
+                 <button 
+                   onClick={handleScanning} 
+                   disabled={isScanning}
+                   className={`brutal-btn uppercase text-xs w-full ${isScanning ? 'opacity-50' : ''}`}
+                 >
+                   {isScanning ? 'System Active' : 'Deep Scan'}
+                 </button>
+
+                 {scanError?.includes('All Files Access') && !isScanning && (
+                   <button 
+                     onClick={async () => {
+                       const { openSettings } = await import('../lib/nativeScanner');
+                       await openSettings();
+                     }}
+                     className="brutal-btn !bg-gold !text-ink uppercase text-[10px] py-2 w-full"
+                   >
+                     Enable Full Access
+                   </button>
+                 )}
+               </div>
              </div>
            ) : (
              folders.map(folder => (

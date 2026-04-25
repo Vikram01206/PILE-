@@ -1,5 +1,6 @@
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Device } from '@capacitor/device';
+import { NativeSettings } from 'capacitor-native-settings';
 import * as mmb from 'music-metadata-browser';
 import { Song } from '../types';
 import { db } from './db';
@@ -7,6 +8,20 @@ import { db } from './db';
 export async function isNative(): Promise<boolean> {
   const info = await Device.getInfo();
   return info.platform === 'android' || info.platform === 'ios';
+}
+
+export async function openSettings() {
+  if (await isNative()) {
+    try {
+      await (NativeSettings as any).open({
+        option: 'app',
+      });
+    } catch (e) {
+      console.error('Piel Engine: Failed to open settings via plugin:', e);
+      // Fallback: This might work on some Android devices
+      window.open('package:com.piel.musicplayer', '_system');
+    }
+  }
 }
 
 export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'> {
@@ -72,10 +87,6 @@ export async function scanNativeMusic(onProgress?: (count: number, currentFile?:
     { dir: Directory.Documents, path: '' }
   ];
   
-  // We can also try root if we have legacy storage permission on older androids
-  // but for Android 11+ it's better to stick to named folders.
-  // We'll add root as a fallback if the first ones fail or find nothing
-  
   const scannedPaths = new Set<string>();
 
   for (const scanTarget of dirsToScan) {
@@ -88,11 +99,14 @@ export async function scanNativeMusic(onProgress?: (count: number, currentFile?:
   }
 
   // If we found nothing in common folders, try root cautiously
+  // On Android 11+, this will likely fail without MANAGE_EXTERNAL_STORAGE
   if (foundSongs.length === 0) {
     try {
+      console.log('Piel Engine: No signals found in common sectors. Attempting broad spectrum scan...');
       await scanRecursive(Directory.ExternalStorage, '', foundSongs, audioExtensions, scannedPaths, onProgress);
     } catch (e) {
-      console.warn('Piel Engine: Root scan failed:', e);
+      console.warn('Piel Engine: Broad spectrum scan failed. This usually indicates restricted storage access on modern Android systems.');
+      throw new Error('No music found. On modern Android devices, you may need to grant "All Files Access" in system settings.');
     }
   }
 
