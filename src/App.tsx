@@ -15,6 +15,8 @@ import { db } from './lib/db';
 import { Song, Playlist } from './types';
 import { isNative, scanNativeMusic } from './lib/nativeScanner';
 import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem } from '@capacitor/filesystem';
 import NowPlaying from './components/NowPlaying';
 import Library from './components/Library';
 import PlaylistManager from './components/PlaylistManager';
@@ -73,20 +75,18 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const initNativePermissions = async () => {
-      const isNativeApp = await isNative();
+      const isNativeApp = Capacitor.isNativePlatform();
       console.log(`Piel Engine: Platform detected - ${isNativeApp ? 'NATIVE' : 'WEB'}`);
       
       if (isNativeApp) {
         try {
-          const { checkPermission, requestPermissions } = await import('./lib/nativeScanner');
+          console.log('Piel Engine: Explicitly requesting permissions on startup...');
+          const permStatus = await Filesystem.requestPermissions();
+          console.log('Piel Engine: Startup Permission Request Result:', JSON.stringify(permStatus));
+
+          const { checkPermission } = await import('./lib/nativeScanner');
           const pStatus = await checkPermission();
-          console.log('Piel Engine: Initial Permission Status:', pStatus);
-          
-          if (pStatus !== 'granted') {
-            console.log('Piel Engine: Requesting permissions on startup...');
-            const newStatus = await requestPermissions();
-            console.log('Piel Engine: Startup Permission Request Result:', newStatus);
-          }
+          console.log('Piel Engine: Verified Permission Status:', pStatus);
           
           const { value } = await Preferences.get({ key: 'has_initial_scan' });
           if (!value) {
