@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity } from 'lucide-react';
+import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download } from 'lucide-react';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
 
@@ -161,6 +161,40 @@ const SettingsView: React.FC = () => {
                </div>
                <div className="w-12 h-6 bg-crimson border-2 border-ink relative cursor-pointer">
                   <div className="absolute right-1 top-1 bottom-1 w-4 bg-ink" />
+               </div>
+            </div>
+         </div>
+      </section>
+
+      <section className="space-y-8">
+         <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
+           <Smartphone className="w-6 h-6 text-crimson" />
+           <h3 className="font-display text-2xl uppercase italic font-black">Mobile Transmission</h3>
+         </div>
+         
+         <div className="brutal-card p-6 md:p-8 bg-gold/10">
+            <div className="flex items-start gap-6">
+               <div className="p-4 bg-gold border-4 border-ink shadow-brutal rounded-2xl hidden sm:block">
+                  <Download size={32} className="text-ink" />
+               </div>
+               <div className="flex-1 space-y-4">
+                  <h4 className="font-display text-2xl uppercase italic font-black leading-tight">Install Piel as App</h4>
+                  <p className="font-serif text-sm italic opacity-70 leading-relaxed">Piel is a Progressive Web App. You can install it directly onto your mobile device for an APK-like experience with full offline support.</p>
+                  
+                  <div className="space-y-3">
+                     <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">1</div>
+                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Open this page on your mobile browser</p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">2</div>
+                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Select "Add to Home Screen" from menu</p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                        <div className="w-5 h-5 rounded-full bg-ink text-cream flex items-center justify-center font-mono text-[10px] font-bold">3</div>
+                        <p className="font-ui text-[10px] uppercase font-bold tracking-widest">Launch Piel from your app drawer</p>
+                     </div>
+                  </div>
                </div>
             </div>
          </div>

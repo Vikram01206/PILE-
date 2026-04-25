@@ -20,6 +20,7 @@ import StatsView from './components/StatsView';
 import SettingsView from './components/SettingsView';
 import SearchOverlay from './components/SearchOverlay';
 import MiniPlayer from './components/MiniPlayer';
+import PWAStatus from './components/PWAStatus';
 
 type Screen = 'home' | 'songs' | 'albums' | 'artists' | 'folders' | 'genres' | 'favorites' | 'playlists' | 'stats' | 'settings' | 'now-playing';
 
@@ -240,6 +241,7 @@ const AppContent: React.FC = () => {
 
       {/* Overlays */}
       {isSearchOpen && <SearchOverlay onClose={() => setIsSearchOpen(false)} songs={allSongs} />}
+      <PWAStatus />
     </div>
   );
 };
