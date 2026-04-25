@@ -90,6 +90,16 @@ export async function requestPermissions() {
 export async function getMediaStoreSongs(): Promise<Song[]> {
   if (!(await isNative())) return [];
   
+  // Explicitly ensure permissions before querying MediaStore
+  const pStatus = await checkPermission();
+  if (pStatus !== 'granted') {
+    const reqStatus = await requestPermissions();
+    if (reqStatus !== 'granted') {
+      console.warn('Piel Engine: MediaStore access blocked by permission denial.');
+      return [];
+    }
+  }
+
   try {
     const { Capacitor } = await import('@capacitor/core');
     const result = await (Capacitor as any).Plugins.MediaStorePlugin.getAudioFiles();
@@ -101,7 +111,7 @@ export async function getMediaStoreSongs(): Promise<Song[]> {
       const fileName = file.name || 'Unknown';
       
       // Use the URI for playback and ID
-      // If path is available (it will be RELATIVE_PATH or DATA), use it for grouping
+      // If path is available (it will be RELATIVE_PATH), use it for grouping
       const displayPath = file.path || 'Music';
       
       songs.push({
