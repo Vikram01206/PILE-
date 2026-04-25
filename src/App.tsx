@@ -13,6 +13,8 @@ import {
 import { AudioProvider, useAudio } from './lib/AudioProvider';
 import { db } from './lib/db';
 import { Song, Playlist } from './types';
+import { isNative, scanNativeMusic } from './lib/nativeScanner';
+import { Preferences } from '@capacitor/preferences';
 import NowPlaying from './components/NowPlaying';
 import Library from './components/Library';
 import PlaylistManager from './components/PlaylistManager';
@@ -55,6 +57,23 @@ const AppContent: React.FC = () => {
       setAllSongs(songs);
     };
     loadSongs();
+  }, []);
+
+  useEffect(() => {
+    const initNativeScan = async () => {
+      if (await isNative()) {
+        const { value } = await Preferences.get({ key: 'has_initial_scan' });
+        if (!value) {
+          // Trigger a background scan on first launch
+          scanNativeMusic().then(async () => {
+             await Preferences.set({ key: 'has_initial_scan', value: 'true' });
+             const songs = await db.getAllSongs();
+             setAllSongs(songs);
+          });
+        }
+      }
+    };
+    initNativeScan();
   }, []);
 
   const renderScreen = () => {

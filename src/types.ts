@@ -20,6 +20,8 @@ export interface Song {
   rating?: number;
   bpm?: number;
   liked?: boolean;
+  nativePath?: string;
+  nativeDirectory?: string;
 }
 
 export interface Playlist {

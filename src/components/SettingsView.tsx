@@ -1,12 +1,36 @@
-import React from 'react';
-import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download, Search, RefreshCw, Music } from 'lucide-react';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
+import { isNative, scanNativeMusic } from '../lib/nativeScanner';
 
 const SettingsView: React.FC = () => {
   const [confirmClear, setConfirmClear] = React.useState(false);
-  const { state, setEQBand, toggleGapless, toggleNormalization } = useAudio();
+  const { state, setEQBand, toggleGapless, toggleNormalization, haptic } = useAudio();
   const [eqGains, setEqGains] = React.useState<number[]>(new Array(10).fill(0));
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
+  const [isNativeDevice, setIsNativeDevice] = useState(false);
+
+  useEffect(() => {
+    isNative().then(setIsNativeDevice);
+  }, []);
+
+  const handleScan = async () => {
+    try {
+      haptic(30);
+      setIsScanning(true);
+      setScanCount(0);
+      await scanNativeMusic((count) => setScanCount(count));
+      haptic(50);
+      alert(`Piel scan complete. Found and indexed ${scanCount} new signals.`);
+    } catch (e) {
+      console.error(e);
+      alert('Scan transmission failed. Ensure storage permissions are granted.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleEQChange = (index: number, value: number) => {
     setEqGains(prev => {
@@ -165,6 +189,41 @@ const SettingsView: React.FC = () => {
             </div>
          </div>
       </section>
+      
+      {isNativeDevice && (
+        <section className="space-y-8">
+           <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
+             <Search className="w-6 h-6 text-crimson" />
+             <h3 className="font-display text-2xl uppercase italic font-black">Native Scan</h3>
+           </div>
+           
+           <div className="brutal-card p-6 md:p-8 bg-gold">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                 <div className="space-y-2">
+                    <h4 className="font-display text-2xl uppercase italic font-black text-ink leading-tight">Autonomous Retrieval</h4>
+                    <p className="font-serif text-sm italic text-ink/70 max-w-md">Search your local device storage for music signals and ingest them into the Piel database.</p>
+                 </div>
+                 <button 
+                   disabled={isScanning}
+                   onClick={handleScan}
+                   className={`brutal-btn min-w-[200px] flex items-center justify-center gap-3 py-4 ${isScanning ? 'bg-ink/20 cursor-wait' : 'bg-ink text-cream hover:bg-crimson'}`}
+                 >
+                   {isScanning ? (
+                     <>
+                        <RefreshCw size={18} className="animate-spin" />
+                        <span>INGESTING {scanCount}</span>
+                     </>
+                   ) : (
+                     <>
+                        <Music size={18} />
+                        <span>INDEX LOCAL STORAGE</span>
+                     </>
+                   )}
+                 </button>
+              </div>
+           </div>
+        </section>
+      )}
 
       <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
