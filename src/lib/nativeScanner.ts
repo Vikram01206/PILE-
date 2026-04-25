@@ -13,12 +13,10 @@ export async function isNative(): Promise<boolean> {
 export async function openSettings() {
   if (await isNative()) {
     try {
-      await (NativeSettings as any).open({
-        option: 'app',
-      });
+      const { Capacitor } = await import('@capacitor/core');
+      await (Capacitor as any).Plugins.MediaStorePlugin.openSettings();
     } catch (e) {
       console.error('Piel Engine: Failed to open settings via plugin:', e);
-      // Fallback
       window.open('package:com.piel.musicplayer', '_system');
     }
   }
@@ -28,20 +26,11 @@ export async function openAllFilesAccess() {
   if (await isNative()) {
     console.log('Piel Engine: Attempting to open All Files Access settings...');
     try {
-      // Try specialized option if supported
-      await (NativeSettings as any).open({
-        option: 'manage_storage',
-      });
+      const { Capacitor } = await import('@capacitor/core');
+      await (Capacitor as any).Plugins.MediaStorePlugin.openAllFilesAccess();
     } catch (e) {
-      console.warn('Piel Engine: manage_storage option failed, falling back to app details.');
-      try {
-        await (NativeSettings as any).open({
-          option: 'app',
-        });
-      } catch (err) {
-        // Ultimate fallback
-        window.open('package:com.piel.musicplayer', '_system');
-      }
+      console.warn('Piel Engine: openAllFilesAccess failed, falling back to app details.');
+      await openSettings();
     }
   }
 }
@@ -94,6 +83,96 @@ export async function requestPermissions() {
     }
   }
   return 'granted';
+}
+
+export async function pickAndDeepScan(): Promise<{ folders: any[] }> {
+  if (!(await isNative())) return { folders: [] };
+  
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    const { Preferences } = await import('@capacitor/preferences');
+    
+    // 1. Pick the folder
+    const pickResult = await (Capacitor as any).Plugins.MediaStorePlugin.pickFolder();
+    const folderUri = pickResult.uri;
+    
+    if (!folderUri) return { folders: [] };
+    
+    // 2. Save root URI
+    const { value } = await Preferences.get({ key: 'root_folders' });
+    let folders: string[] = value ? JSON.parse(value) : [];
+    if (!folders.includes(folderUri)) {
+      folders.push(folderUri);
+      await Preferences.set({ key: 'root_folders', value: JSON.stringify(folders) });
+    }
+    
+    // 3. Scan
+    return await (Capacitor as any).Plugins.MediaStorePlugin.deepScan({ uri: folderUri });
+  } catch (e) {
+    console.error('Piel Engine: Deep Scan failed:', e);
+    return { folders: [] };
+  }
+}
+
+export async function getRootFolderScans(): Promise<{ folders: any[] }> {
+  if (!(await isNative())) return { folders: [] };
+  
+  try {
+    const { Capacitor } = await import('@capacitor/core');
+    const { Preferences } = await import('@capacitor/preferences');
+    const { value } = await Preferences.get({ key: 'root_folders' });
+    
+    if (!value) return { folders: [] };
+    
+    const rootUris: string[] = JSON.parse(value);
+    let allFolders: any[] = [];
+    
+    for (const uri of rootUris) {
+      try {
+        const result = await (Capacitor as any).Plugins.MediaStorePlugin.deepScan({ uri });
+        if (result && result.folders) {
+          allFolders = [...allFolders, ...result.folders];
+        }
+      } catch (err) {
+        console.warn(`Piel Engine: Auto-scan failed for ${uri}:`, err);
+      }
+    }
+    
+    if (allFolders.length > 0) {
+      await ingestDeepScanResults(allFolders);
+    }
+    
+    return { folders: allFolders };
+  } catch (e) {
+    console.error('Piel Engine: Error loading root folders:', e);
+    return { folders: [] };
+  }
+}
+
+export async function ingestDeepScanResults(folders: any[]) {
+  const songs: Song[] = [];
+  for (const folder of folders) {
+    for (const song of folder.songs) {
+      songs.push({
+        id: `saf-${song.uri}`,
+        title: song.name.replace(/\.[^/.]+$/, ""),
+        artist: 'Unknown Artist',
+        album: 'Unknown Album',
+        duration: 0,
+        addedAt: Date.now(),
+        playCount: 0,
+        nativePath: song.uri,
+        folderPath: folder.folderName,
+        data: new File([], song.name),
+        url: song.uri
+      });
+    }
+  }
+
+  for (const s of songs) {
+    await db.saveSong(s);
+  }
+  return songs;
 }
 
 export async function pickAndScanFolder(): Promise<Song[]> {

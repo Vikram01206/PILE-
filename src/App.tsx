@@ -142,9 +142,15 @@ const AppContent: React.FC = () => {
                for (const song of msSongs) {
                  await db.saveSong(song);
                }
-               const songs = await db.getAllSongs();
-               setAllSongs(songs);
              }
+
+             // Auto-scan SAF folders
+             const { getRootFolderScans } = await import('./lib/nativeScanner');
+             const safResult = await getRootFolderScans();
+             console.log(`Piel Engine: SAF auto-scan detected ${safResult.folders.length} folders.`);
+
+             const songs = await db.getAllSongs();
+             setAllSongs(songs);
              setIsLoadingSongs(false);
           } else {
              console.warn('Piel Engine: Storage permission not granted. Native signals unavailable.');

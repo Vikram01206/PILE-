@@ -236,48 +236,92 @@ class MediaStorePlugin : Plugin() {
     }
 
     @PluginMethod
-    fun scanFolder(call: PluginCall) {
-        val folderUriString = call.getString("uri") ?: return call.reject("URI is required")
-        val folderUri = Uri.parse(folderUriString)
+    fun deepScan(call: PluginCall) {
+        val uriString = call.getString("uri") ?: return call.reject("URI is required")
+        val rootUri = Uri.parse(uriString)
         val result = JSONArray()
         
         try {
-            val rootFolder = DocumentFile.fromTreeUri(context, folderUri)
-            if (rootFolder != null) {
-                scanDocumentRecursive(rootFolder, result)
+            val rootFolder = DocumentFile.fromTreeUri(context, rootUri)
+            if (rootFolder == null) {
+                return call.reject("Could not access root folder")
+            }
+
+            val foldersMap = mutableMapOf<String, JSONObject>()
+            
+            scanRecursiveGrouped(rootFolder, foldersMap)
+            
+            for (folder in foldersMap.values) {
+                result.put(folder)
             }
             
             val ret = JSObject()
-            ret.put("files", result)
+            ret.put("folders", result)
             call.resolve(ret)
         } catch (e: Exception) {
-            call.reject("Scan failed: ${e.message}")
+            Log.e("MediaStorePlugin", "Deep Scan error", e)
+            call.reject("Deep Scan failed: ${e.message}")
         }
     }
 
-    private fun scanDocumentRecursive(dir: DocumentFile, result: JSONArray) {
-        for (file in dir.listFiles()) {
+    private fun scanRecursiveGrouped(dir: DocumentFile, foldersMap: MutableMap<String, JSONObject>) {
+        val files = dir.listFiles()
+        val songsInThisFolder = JSONArray()
+        
+        for (file in files) {
             if (file.isDirectory) {
-                scanDocumentRecursive(file, result)
+                scanRecursiveGrouped(file, foldersMap)
             } else if (isAudio(file)) {
-                val obj = JSONObject()
-                obj.put("uri", file.uri.toString())
-                obj.put("name", file.name ?: "Unknown")
-                obj.put("artist", "Unknown Artist")
-                obj.put("album", "Unknown Album")
-                obj.put("duration", 0L)
-                obj.put("path", dir.name ?: "Music")
-                result.put(obj)
+                val songObj = JSONObject()
+                songObj.put("uri", file.uri.toString())
+                songObj.put("name", file.name ?: "Unknown Signal")
+                songsInThisFolder.put(songObj)
             }
         }
+        
+        if (songsInThisFolder.length() > 0) {
+            val folderObj = JSONObject()
+            folderObj.put("folderName", dir.name ?: "Unknown Sector")
+            folderObj.put("folderUri", dir.uri.toString())
+            folderObj.put("songCount", songsInThisFolder.length())
+            folderObj.put("songs", songsInThisFolder)
+            
+            // Generate a unique key for the folder to avoid duplicates if name is same but path is different
+            val key = dir.uri.toString()
+            foldersMap[key] = folderObj
+        }
+    }
+
+    @PluginMethod
+    fun openSettings(call: PluginCall) {
+        val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        intent.data = Uri.fromParts("package", context.packageName, null)
+        context.startActivity(intent)
+        call.resolve()
+    }
+
+    @PluginMethod
+    fun openAllFilesAccess(call: PluginCall) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_VERSION_CODES.R) {
+            val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
+            intent.data = Uri.fromParts("package", context.packageName, null)
+            context.startActivity(intent)
+        } else {
+            openSettings(call)
+            return
+        }
+        call.resolve()
     }
 
     private fun isAudio(file: DocumentFile): Boolean {
         val type = file.type ?: return false
+        val name = file.name?.lowercase() ?: ""
         return type.startsWith("audio/") || 
-               file.name?.endsWith(".mp3", true) == true ||
-               file.name?.endsWith(".m4a", true) == true ||
-               file.name?.endsWith(".wav", true) == true ||
-               file.name?.endsWith(".flac", true) == true
+               name.endsWith(".mp3") ||
+               name.endsWith(".m4a") ||
+               name.endsWith(".wav") ||
+               name.endsWith(".flac") ||
+               name.endsWith(".aac") ||
+               name.endsWith(".ogg")
     }
 }

@@ -17,9 +17,36 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
   const [scanCount, setScanCount] = useState(0);
   const [isNativeDevice, setIsNativeDevice] = useState(false);
 
+  const [scanResults, setScanResults] = useState<any[]>([]);
+
   useEffect(() => {
     isNative().then(setIsNativeDevice);
-  }, []);
+    if (isNativeDevice) {
+      import('../lib/nativeScanner').then(m => m.getRootFolderScans()).then(res => {
+        if (res && res.folders) setScanResults(res.folders);
+      });
+    }
+  }, [isNativeDevice]);
+
+  const handleDeepScan = async () => {
+    try {
+      haptic(30);
+      setIsScanning(true);
+      const { pickAndDeepScan, ingestDeepScanResults } = await import('../lib/nativeScanner');
+      const result = await pickAndDeepScan();
+      if (result && result.folders) {
+        setScanResults(result.folders);
+        await ingestDeepScanResults(result.folders);
+        haptic(50);
+        alert(`Deep Scan Complete: ${result.folders.reduce((acc, f) => acc + f.songCount, 0)} signals synced.`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Deep Scan failed.');
+    } finally {
+      setIsScanning(false);
+    }
+  };
 
   const handleScan = async () => {
     try {
@@ -248,6 +275,66 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
          </div>
       </section>
       
+      {isNativeDevice && (
+        <section className="space-y-8">
+           <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
+             <Cpu className="w-6 h-6 text-crimson" />
+             <h3 className="font-display text-2xl uppercase font-black">Direct File Access</h3>
+           </div>
+           
+           <div className="brutal-card p-6 md:p-8 bg-cream border-crimson">
+              <div className="flex flex-col gap-8">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="space-y-2">
+                       <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Deep Directory Scan</h4>
+                       <p className="text-sm text-ink/70 max-w-md">Bypass system limitations by granting direct access to specific music folders via the Storage Access Framework.</p>
+                    </div>
+                    <button 
+                      disabled={isScanning}
+                      onClick={handleDeepScan}
+                      className={`brutal-btn min-w-[200px] flex items-center justify-center gap-3 py-4 ${isScanning ? 'bg-ink/20' : 'bg-crimson text-cream hover:bg-ink'}`}
+                    >
+                      {isScanning ? <RefreshCw size={18} className="animate-spin" /> : <HardDrive size={18} />}
+                      <span>{isScanning ? 'SCANNING...' : 'DEEP SCAN'}</span>
+                    </button>
+                 </div>
+
+                 {scanResults.length > 0 && (
+                   <div className="space-y-4 pt-6 border-t border-ink/10">
+                      <p className="font-ui text-[10px] tracking-widest uppercase font-black text-ink/40">Discovered Sectors</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                         {scanResults.map((folder, idx) => (
+                           <div 
+                             key={idx} 
+                             className="flex items-center justify-between brutal-card p-4 bg-cream-warm hover:bg-gold transition-colors cursor-pointer group"
+                             onClick={() => {
+                               // Here we would ideally navigate to the folder songs
+                               // For now let's just alert
+                               alert(`Accessing ${folder.folderName}: ${folder.songCount} signals available.`);
+                             }}
+                           >
+                              <div className="flex items-center gap-4">
+                                 <div className="w-10 h-10 bg-ink flex items-center justify-center text-cream brutal-border group-hover:bg-crimson transition-colors">
+                                    <Music size={18} />
+                                 </div>
+                                 <div>
+                                    <div className="font-display text-lg uppercase font-black leading-tight truncate max-w-[150px]">{folder.folderName}</div>
+                                    <div className="text-[10px] uppercase font-bold opacity-50">{folder.songCount} Signals Detected</div>
+                                 </div>
+                              </div>
+                              <div className="text-crimson">
+                                 <Activity size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+                 )}
+              </div>
+           </div>
+        </section>
+      )}
+
       {isNativeDevice && (
         <section className="space-y-8">
            <div className="flex items-center gap-4 border-b-2 border-ink pb-4">

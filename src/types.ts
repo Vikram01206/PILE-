@@ -42,6 +42,13 @@ export interface SmartRule {
   value: any;
 }
 
+export interface ScannerFolder {
+  folderName: string;
+  folderUri: string;
+  songCount: number;
+  songs: { name: string; uri: string }[];
+}
+
 export interface PlaybackState {
   currentSongId: string | null;
   queue: string[];
