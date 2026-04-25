@@ -50,24 +50,26 @@ export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'
   if (!(await isNative())) return 'granted';
   
   try {
-    const status = await Filesystem.checkPermissions();
-    console.log('Piel Engine: raw checkPermissions status:', JSON.stringify(status));
+    const { Capacitor } = await import('@capacitor/core');
+    const status = await (Capacitor as any).Plugins.MediaStorePlugin.checkPermissions();
+    console.log('Piel Engine: MediaStorePlugin checkPermissions status:', JSON.stringify(status));
     
-    // Some versions of Android (13+) might report 'granted' for specific media types
-    // but capacitor-filesystem might map them to publicStorage
-    const publicStorage = status.publicStorage;
-    
-    if (publicStorage === 'granted') {
-      console.log('Piel Engine: Public storage permission is GRANTED');
+    // Check both for broadest compatibility
+    if (status.audio === 'granted' || status.storage === 'granted') {
       return 'granted';
     }
-    if (publicStorage === 'denied') {
-      console.log('Piel Engine: Public storage permission is DENIED');
+    if (status.audio === 'denied' || status.storage === 'denied') {
       return 'denied';
     }
-    console.log('Piel Engine: Public storage permission is in PROMPT state');
   } catch (e) {
-    console.error('Piel Engine: checkPermissions error:', e);
+    console.warn('Piel Engine: MediaStorePlugin checkPermissions failed, falling back to Filesystem:', e);
+    try {
+      const status = await Filesystem.checkPermissions();
+      if (status.publicStorage === 'granted') return 'granted';
+      if (status.publicStorage === 'denied') return 'denied';
+    } catch (err) {
+      console.error('Piel Engine: Permission check failed:', err);
+    }
   }
   return 'prompt';
 }
@@ -75,13 +77,20 @@ export async function checkPermission(): Promise<'granted' | 'denied' | 'prompt'
 export async function requestPermissions() {
   if (await isNative()) {
     try {
-      console.log('Piel Engine: Calling Filesystem.requestPermissions()...');
-      const status = await Filesystem.requestPermissions();
-      console.log('Piel Engine: raw requestPermissions result:', JSON.stringify(status));
-      return status.publicStorage;
+      const { Capacitor } = await import('@capacitor/core');
+      console.log('Piel Engine: Calling MediaStorePlugin.requestPermissions()...');
+      const status = await (Capacitor as any).Plugins.MediaStorePlugin.requestPermissions();
+      console.log('Piel Engine: MediaStorePlugin requestPermissions result:', JSON.stringify(status));
+      return (status.audio === 'granted' || status.storage === 'granted') ? 'granted' : 'denied';
     } catch (e) {
-      console.error('Piel Engine: Error requesting permissions:', e);
-      return 'denied';
+      console.warn('Piel Engine: MediaStorePlugin requestPermissions failed, falling back to Filesystem:', e);
+      try {
+        const status = await Filesystem.requestPermissions();
+        return status.publicStorage;
+      } catch (err) {
+        console.error('Piel Engine: Error requesting permissions:', err);
+        return 'denied';
+      }
     }
   }
   return 'granted';

@@ -83,13 +83,11 @@ const AppContent: React.FC = () => {
       
       if (isNativeApp) {
         try {
+          const { checkPermission, requestPermissions, getMediaStoreSongs } = await import('./lib/nativeScanner');
+          
           console.log('Piel Engine: Explicitly requesting permissions for MediaStore access...');
-          const permStatus = await Filesystem.requestPermissions();
-          console.log('Piel Engine: Startup Permission Request Result:', JSON.stringify(permStatus));
-
-          const { checkPermission, getMediaStoreSongs } = await import('./lib/nativeScanner');
-          const pStatus = await checkPermission();
-          console.log('Piel Engine: Verified Permission Status:', pStatus);
+          const pStatus = await requestPermissions();
+          console.log('Piel Engine: Startup Permission Status:', pStatus);
           
           if (pStatus === 'granted') {
              console.log('Piel Engine: Permission granted. Accessing media signals...');

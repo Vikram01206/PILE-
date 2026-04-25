@@ -26,9 +26,34 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
       haptic(30);
       setIsScanning(true);
       setScanCount(0);
-      await scanNativeMusic((count) => setScanCount(count));
-      haptic(50);
-      alert(`Piel scan complete. Found and indexed ${scanCount} new signals.`);
+      
+      const { getMediaStoreSongs } = await import('../lib/nativeScanner');
+      const songs = await getMediaStoreSongs();
+      
+      if (songs.length > 0) {
+        for (const song of songs) {
+          await db.saveSong(song);
+        }
+        setScanCount(songs.length);
+        haptic(50);
+        alert(`Piel scan complete. Found and indexed ${songs.length} signals.`);
+      } else {
+        // Fallback to SAF folder picker if MediaStore is empty
+        const confirmSAF = confirm("Deep system query returned 0 results. This is common on modern Android. Would you like to manually select your Music folder for indexed retrieval?");
+        if (confirmSAF) {
+          const { pickAndScanFolder } = await import('../lib/nativeScanner');
+          const manualSongs = await pickAndScanFolder();
+          if (manualSongs.length > 0) {
+            for (const song of manualSongs) {
+              await db.saveSong(song);
+            }
+            setScanCount(manualSongs.length);
+            alert(`Folder indexed! ${manualSongs.length} signals ingested.`);
+          } else {
+            alert("No signals found in the selected folder.");
+          }
+        }
+      }
     } catch (e) {
       console.error(e);
       alert('Scan transmission failed. Ensure storage permissions are granted.');
