@@ -120,48 +120,29 @@ const AppContent: React.FC = () => {
   }, [playSong]);
 
   useEffect(() => {
-    const initNativePermissions = async () => {
-      const isNativeApp = Capacitor.isNativePlatform();
-      console.log(`Piel Engine: Platform detected - ${isNativeApp ? 'NATIVE' : 'WEB'}`);
-      
-      if (isNativeApp) {
-        try {
-          const { checkPermission, requestPermissions, getMediaStoreSongs } = await import('./lib/nativeScanner');
-          
-          console.log('Piel Engine: Explicitly requesting permissions for MediaStore access...');
-          const pStatus = await requestPermissions();
-          console.log('Piel Engine: Startup Permission Status:', pStatus);
-          
-          if (pStatus === 'granted') {
-             console.log('Piel Engine: Permission granted. Accessing media signals...');
-             setIsLoadingSongs(true);
-             const msSongs = await getMediaStoreSongs();
-             console.log(`Piel Engine: Detected ${msSongs.length} signals via MediaStore.`);
-             
-             if (msSongs.length > 0) {
-               for (const song of msSongs) {
-                 await db.saveSong(song);
-               }
-             }
-
-             // Auto-scan SAF folders
-             const { getRootFolderScans } = await import('./lib/nativeScanner');
-             const safResult = await getRootFolderScans();
-             console.log(`Piel Engine: SAF auto-scan detected ${safResult.folders.length} folders.`);
-
-             const songs = await db.getAllSongs();
-             setAllSongs(songs);
-             setIsLoadingSongs(false);
-          } else {
-             console.warn('Piel Engine: Storage permission not granted. Native signals unavailable.');
-          }
-        } catch (err) {
-          console.error('Piel Engine: Critical failure during native initialization:', err);
-          setIsLoadingSongs(false);
+    const initAppData = async () => {
+      setIsLoadingSongs(true);
+      try {
+        const songs = await db.getAllSongs();
+        setAllSongs(songs);
+        
+        // On native platforms, trigger a re-scan of previously authorized SAF folders
+        if (Capacitor.isNativePlatform()) {
+           const { getRootFolderScans, ingestDeepScanResults } = await import('./lib/nativeScanner');
+           const safResult = await getRootFolderScans();
+           if (safResult.folders.length > 0) {
+             await ingestDeepScanResults(safResult.folders);
+             const updatedSongs = await db.getAllSongs();
+             setAllSongs(updatedSongs);
+           }
         }
+      } catch (err) {
+        console.error('Piel Engine: Sector boot failure:', err);
+      } finally {
+        setIsLoadingSongs(false);
       }
     };
-    initNativePermissions();
+    initAppData();
   }, []);
 
   const renderScreen = () => {

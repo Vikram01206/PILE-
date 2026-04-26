@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download, Search, RefreshCw, Music, Type } from 'lucide-react';
+import { Settings as SettingsIcon, Volume2, Shield, Monitor, HardDrive, Trash2, Cpu, Activity, Smartphone, Download, Search, RefreshCw, Music, Type, Folder, ChevronRight } from 'lucide-react';
 import { db } from '../lib/db';
 import { useAudio } from '../lib/AudioProvider';
-import { isNative, scanNativeMusic } from '../lib/nativeScanner';
+import { isNative } from '../lib/nativeScanner';
 
 interface SettingsProps {
   fontTheme: string;
@@ -14,7 +14,6 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
   const { state, setEQBand, toggleGapless, toggleNormalization, haptic } = useAudio();
   const [eqGains, setEqGains] = React.useState<number[]>(new Array(10).fill(0));
   const [isScanning, setIsScanning] = useState(false);
-  const [scanCount, setScanCount] = useState(0);
   const [isNativeDevice, setIsNativeDevice] = useState(false);
 
   const [scanResults, setScanResults] = useState<any[]>([]);
@@ -43,47 +42,6 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
     } catch (e) {
       console.error(e);
       alert('Deep Scan failed.');
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  const handleScan = async () => {
-    try {
-      haptic(30);
-      setIsScanning(true);
-      setScanCount(0);
-      
-      const { getMediaStoreSongs } = await import('../lib/nativeScanner');
-      const songs = await getMediaStoreSongs();
-      
-      if (songs.length > 0) {
-        for (const song of songs) {
-          await db.saveSong(song);
-        }
-        setScanCount(songs.length);
-        haptic(50);
-        alert(`SONIC SCAN COMPLETE: Found ${songs.length} audio signatures.`);
-      } else {
-        // Fallback to SAF folder picker if MediaStore is empty
-        const confirmSAF = confirm("DEEP SCAN: System query returned 0 results. This is common on modern Android / OnePlus. Would you like to manually select your 'Music' folder to grant direct access?");
-        if (confirmSAF) {
-          const { pickAndScanFolder } = await import('../lib/nativeScanner');
-          const manualSongs = await pickAndScanFolder();
-          if (manualSongs.length > 0) {
-            for (const song of manualSongs) {
-              await db.saveSong(song);
-            }
-            setScanCount(manualSongs.length);
-            alert(`Folder indexed! ${manualSongs.length} signals ingested.`);
-          } else {
-            alert("No signals found in the selected folder.");
-          }
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Scan transmission failed. Ensure storage permissions are granted.');
     } finally {
       setIsScanning(false);
     }
@@ -301,90 +259,41 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
 
                  {scanResults.length > 0 && (
                    <div className="space-y-4 pt-6 border-t border-ink/10">
-                      <p className="font-ui text-[10px] tracking-widest uppercase font-black text-ink/40">Discovered Sectors</p>
+                      <div className="flex items-center justify-between">
+                        <p className="font-ui text-[10px] tracking-widest uppercase font-black text-ink/40">Discovered Sectors</p>
+                        <span className="text-[10px] font-bold text-crimson uppercase">
+                          {scanResults.reduce((acc, f) => acc + f.songCount, 0)} Combined Signals
+                        </span>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          {scanResults.map((folder, idx) => (
                            <div 
                              key={idx} 
                              className="flex items-center justify-between brutal-card p-4 bg-cream-warm hover:bg-gold transition-colors cursor-pointer group"
-                             onClick={() => {
-                               // Here we would ideally navigate to the folder songs
-                               // For now let's just alert
-                               alert(`Accessing ${folder.folderName}: ${folder.songCount} signals available.`);
+                             onClick={async () => {
+                               haptic(10);
+                               // In a real flow, this would navigate to a folder-filtered view
+                               // For now, it shows the ingestion status
+                               alert(`${folder.folderName.toUpperCase()} Sector: ${folder.songCount} signals synced to core library.`);
                              }}
                            >
                               <div className="flex items-center gap-4">
                                  <div className="w-10 h-10 bg-ink flex items-center justify-center text-cream brutal-border group-hover:bg-crimson transition-colors">
-                                    <Music size={18} />
+                                    <Folder size={18} />
                                  </div>
                                  <div>
                                     <div className="font-display text-lg uppercase font-black leading-tight truncate max-w-[150px]">{folder.folderName}</div>
-                                    <div className="text-[10px] uppercase font-bold opacity-50">{folder.songCount} Signals Detected</div>
+                                    <div className="text-[10px] uppercase font-bold opacity-50">{folder.songCount} Signals</div>
                                  </div>
                               </div>
                               <div className="text-crimson">
-                                 <Activity size={16} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                 <ChevronRight size={16} />
                               </div>
                            </div>
                          ))}
                       </div>
                    </div>
                  )}
-              </div>
-           </div>
-        </section>
-      )}
-
-      {isNativeDevice && (
-        <section className="space-y-8">
-           <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
-             <Search className="w-6 h-6 text-crimson" />
-             <h3 className="font-display text-2xl uppercase font-black">Native Scan</h3>
-           </div>
-           
-           <div className="brutal-card p-6 md:p-8 bg-gold">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                 <div className="space-y-2">
-                    <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Autonomous Retrieval</h4>
-                    <p className="text-sm text-ink/70 max-w-md">Search your local device storage for music signals and ingest them into the Piel database.</p>
-                    <div className="flex gap-4 mt-2">
-                      <button 
-                        onClick={async () => {
-                          const { openSettings } = await import('../lib/nativeScanner');
-                          openSettings();
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-widest text-crimson underline cursor-pointer"
-                      >
-                        App Settings
-                      </button>
-                      <button 
-                        onClick={async () => {
-                          const { openAllFilesAccess } = await import('../lib/nativeScanner');
-                          openAllFilesAccess();
-                        }}
-                        className="text-[10px] font-bold uppercase tracking-widest text-crimson underline cursor-pointer"
-                      >
-                        Storage Access
-                      </button>
-                    </div>
-                 </div>
-                 <button 
-                   disabled={isScanning}
-                   onClick={handleScan}
-                   className={`brutal-btn min-w-[200px] flex items-center justify-center gap-3 py-4 ${isScanning ? 'bg-ink/20 cursor-wait' : 'bg-ink text-cream hover:bg-crimson'}`}
-                 >
-                   {isScanning ? (
-                     <>
-                        <RefreshCw size={18} className="animate-spin" />
-                        <span>INGESTING {scanCount}</span>
-                     </>
-                   ) : (
-                     <>
-                        <Music size={18} />
-                        <span>INDEX LOCAL STORAGE</span>
-                     </>
-                   )}
-                 </button>
               </div>
            </div>
         </section>

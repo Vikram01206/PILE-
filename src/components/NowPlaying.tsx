@@ -476,12 +476,6 @@ const NowPlaying: React.FC<{ isExpanded: boolean; onMinimize?: () => void }> = (
             {state.volume === 0 ? <VolumeX size={18} className="text-crimson" /> : <Volume2 size={18} />}
           </button>
           <button 
-            onClick={() => { haptic(15); setShowVisualizer(!showVisualizer); }}
-            className={`w-9 h-9 border-2 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showVisualizer ? 'bg-gold text-ink' : 'bg-cream hover:bg-cream-dark'}`}
-          >
-            <Disc size={18} className={state.isPlaying ? 'animate-spin-slow' : ''} />
-          </button>
-          <button 
             onClick={() => { haptic(20); setShowQueue(true); }}
             className={`w-9 h-9 border-2 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showQueue ? 'bg-crimson text-white' : 'bg-cream hover:bg-cream-dark'}`}
           >
