@@ -125,17 +125,6 @@ const AppContent: React.FC = () => {
       try {
         const songs = await db.getAllSongs();
         setAllSongs(songs);
-        
-        // On native platforms, trigger a re-scan of previously authorized SAF folders
-        if (Capacitor.isNativePlatform()) {
-           const { getRootFolderScans, ingestDeepScanResults } = await import('./lib/nativeScanner');
-           const safResult = await getRootFolderScans();
-           if (safResult.folders.length > 0) {
-             await ingestDeepScanResults(safResult.folders);
-             const updatedSongs = await db.getAllSongs();
-             setAllSongs(updatedSongs);
-           }
-        }
       } catch (err) {
         console.error('Piel Engine: Sector boot failure:', err);
       } finally {

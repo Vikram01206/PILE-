@@ -514,13 +514,7 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
                       }}
                       className="px-8 py-3 bg-crimson text-cream border-2 border-ink shadow-brutal rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-ink transition-all active:translate-y-0.5 active:shadow-none"
                      >
-                       Select Music Folder
-                     </button>
-                     <button 
-                      onClick={handleScanning}
-                      className="px-8 py-2 bg-cream text-ink border-2 border-ink shadow-brutal rounded-xl font-black uppercase text-[10px] hover:bg-zinc-100 transition-all active:translate-y-0.5 active:shadow-none"
-                     >
-                       Try Deep System Scan
+                       Scan Music Sector
                      </button>
                    </div>
                  </>

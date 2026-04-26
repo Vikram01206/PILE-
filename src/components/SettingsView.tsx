@@ -233,29 +233,28 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
          </div>
       </section>
       
-      {isNativeDevice && (
-        <section className="space-y-8">
-           <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
-             <Cpu className="w-6 h-6 text-crimson" />
-             <h3 className="font-display text-2xl uppercase font-black">Direct File Access</h3>
-           </div>
-           
-           <div className="brutal-card p-6 md:p-8 bg-cream border-crimson">
-              <div className="flex flex-col gap-8">
-                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="space-y-2">
-                       <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Deep Directory Scan</h4>
-                       <p className="text-sm text-ink/70 max-w-md">Bypass system limitations by granting direct access to specific music folders via the Storage Access Framework.</p>
-                    </div>
-                    <button 
-                      disabled={isScanning}
-                      onClick={handleDeepScan}
-                      className={`brutal-btn min-w-[200px] flex items-center justify-center gap-3 py-4 ${isScanning ? 'bg-ink/20' : 'bg-crimson text-cream hover:bg-ink'}`}
-                    >
-                      {isScanning ? <RefreshCw size={18} className="animate-spin" /> : <HardDrive size={18} />}
-                      <span>{isScanning ? 'SCANNING...' : 'DEEP SCAN'}</span>
-                    </button>
-                 </div>
+      <section className="space-y-8">
+         <div className="flex items-center gap-4 border-b-2 border-ink pb-4">
+           <HardDrive className="w-6 h-6 text-crimson" />
+           <h3 className="font-display text-2xl uppercase font-black">Library Ingestion</h3>
+         </div>
+         
+         <div className="brutal-card p-6 md:p-8 bg-cream border-crimson">
+            <div className="flex flex-col gap-8">
+               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="space-y-2">
+                     <h4 className="font-display text-2xl uppercase font-black text-ink leading-tight">Manual Folder Selection</h4>
+                     <p className="text-sm text-ink/70 max-w-md">Select a local directory to populate your library. Piel will analyze the signals within the sector and index them for playback.</p>
+                  </div>
+                  <button 
+                    disabled={isScanning}
+                    onClick={handleDeepScan}
+                    className={`brutal-btn min-w-[200px] flex items-center justify-center gap-3 py-4 ${isScanning ? 'bg-ink/20' : 'bg-crimson text-cream hover:bg-ink'}`}
+                  >
+                    {isScanning ? <RefreshCw size={18} className="animate-spin" /> : <Search size={18} />}
+                    <span>{isScanning ? 'INGESTING...' : 'SCAN FOLDER'}</span>
+                  </button>
+               </div>
 
                  {scanResults.length > 0 && (
                    <div className="space-y-4 pt-6 border-t border-ink/10">
@@ -296,8 +295,7 @@ const SettingsView: React.FC<SettingsProps> = ({ fontTheme, onFontThemeChange })
                  )}
               </div>
            </div>
-        </section>
-      )}
+      </section>
 
       <section className="space-y-8">
          <div className="flex items-center gap-4 border-b-2 border-ink pb-4 text-crimson">
