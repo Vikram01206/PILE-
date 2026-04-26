@@ -31,14 +31,15 @@ export async function parseSongFile(file: File): Promise<Song> {
     url: URL.createObjectURL(file),
     addedAt: Date.now(),
     playCount: 0,
-    nativePath: (file as any).webkitRelativePath || file.name
   };
 }
 
-export async function scanDirectory(files: FileList | File[]): Promise<Song[]> {
+export async function scanDirectory(files: FileList): Promise<Song[]> {
   const songs: Song[] = [];
-  const fileArray = Array.from(files);
-  for (const file of fileArray) {
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    
+    // Improved check: some browsers don't give a type for all audio files
     const isAudio = file.type.startsWith('audio/') || 
                     /\.(mp3|flac|wav|aac|ogg|m4a|mp4|m4b)$/i.test(file.name);
 
@@ -48,6 +49,11 @@ export async function scanDirectory(files: FileList | File[]): Promise<Song[]> {
         songs.push(song);
       } catch (e) {
         console.error(`Piel Engine Error: Failed to decode ${file.name}. This format might be corrupted or unsupported by your browser's decoder.`, e);
+      }
+    } else {
+      // Ignore known non-audio files quietly, but maybe log others
+      if (!file.name.startsWith('.') && !['Thumbs.db', 'desktop.ini', 'folder.jpg', 'cover.jpg'].includes(file.name)) {
+        console.warn(`Piel Engine: Ignoring non-audio file ${file.name}`);
       }
     }
   }

@@ -22,7 +22,6 @@ export interface Song {
   liked?: boolean;
   nativePath?: string;
   nativeDirectory?: string;
-  folderPath?: string;
 }
 
 export interface Playlist {
@@ -40,13 +39,6 @@ export interface SmartRule {
   field: keyof Song;
   operator: 'equals' | 'contains' | 'greaterThan' | 'lessThan' | 'between';
   value: any;
-}
-
-export interface ScannerFolder {
-  folderName: string;
-  folderUri: string;
-  songCount: number;
-  songs: { name: string; uri: string }[];
 }
 
 export interface PlaybackState {

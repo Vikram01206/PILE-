@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'motion/react';
-import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc, FolderPlus } from 'lucide-react';
+import { Upload, Filter, List, Grid, LayoutGrid, MoreVertical, Play, Heart, Star, Plus, Music2, X, ChevronRight, Music, Disc, RefreshCw } from 'lucide-react';
 import { Song, Playlist } from '../types';
 import { parseSongFile, scanDirectory } from '../lib/libraryScanner';
 import { db } from '../lib/db';
@@ -9,7 +9,6 @@ import { useAudio } from '../lib/AudioProvider';
 interface LibraryProps {
   screen: string;
   songs: Song[];
-  isLoading?: boolean;
   onRefresh: () => void;
   onPlay?: () => void;
 }
@@ -23,7 +22,7 @@ const MenuAction: React.FC<{
 }> = ({ icon: Icon, label, onClick, active, variant = 'default' }) => (
   <button 
     onClick={(e) => { e.stopPropagation(); onClick(); }}
-    className={`w-full flex items-center gap-3 px-3 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-ink/5 transition-colors ${variant === 'danger' ? 'text-crimson' : active ? 'text-gold' : 'text-ink'}`}
+    className={`w-full flex items-center gap-3 px-3 py-2 text-[10px] uppercase font-bold tracking-widest hover:bg-cream-dark transition-colors ${variant === 'danger' ? 'text-crimson' : active ? 'text-gold' : 'text-ink'}`}
   >
     <Icon className="w-3 h-3" />
     <span>{label}</span>
@@ -206,12 +205,9 @@ const SongListItem: React.FC<{
   );
 };
 
-const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, onPlay }) => {
+const Library: React.FC<LibraryProps> = ({ screen, songs, onRefresh, onPlay }) => {
   const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
   const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(0);
-  const [currentFile, setCurrentFile] = useState('');
-  const [scanError, setScanError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const { playSong, addToQueue, haptic } = useAudio();
@@ -221,80 +217,22 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
     if (onPlay) onPlay();
   };
 
-  const handleScanning = async () => {
-    console.log('Piel Engine: Scan button clicked.');
-    setIsScanning(true);
-    setScanProgress(0);
-    setScanError(null);
-    try {
-      let newSongs: Song[] = [];
-      
-      const { isNative, getMediaStoreSongs, scanNativeMusic, requestPermissions } = await import('../lib/nativeScanner');
-      const isNativeApp = await isNative();
-      console.log(`Piel Engine: Scanning on platform: ${isNativeApp ? 'NATIVE' : 'WEB'}`);
-
-      if (isNativeApp) {
-        console.log('Piel Engine: Initiating MediaStore query sequence...');
-        try {
-          newSongs = await getMediaStoreSongs();
-          console.log(`Piel Engine: MediaStore query found ${newSongs.length} items.`);
-          
-          if (newSongs.length === 0) {
-            console.log('Piel Engine: MediaStore returned nothing. Falling back to directory traversal...');
-            newSongs = await scanNativeMusic((count, file) => {
-              setScanProgress(count);
-              if (file) setCurrentFile(file);
-            });
-          }
-        } catch (err: any) {
-          console.error('Piel Engine: Scanner Error:', err);
-          if (err?.message?.includes('denied') || err?.message?.includes('permission')) {
-             const status = await requestPermissions();
-             console.log('Piel Engine: Emergency permission request result:', status);
-          }
-          setScanError(err.message);
-          throw err;
-        }
-      } else {
-        console.log('Piel Engine: Browser environment detected. Falling back to multi-file selection.');
-        fileInputRef.current?.click();
-        return;
-      }
-
-      if (newSongs.length > 0) {
-        console.log(`Piel Engine: Processing ${newSongs.length} signals for database entry...`);
-        for (const song of newSongs) {
-          await db.saveSong(song);
-        }
-        onRefresh();
-        console.log('Piel Engine: Library synched successfully.');
-      } else {
-        console.log('Piel Engine: Search completed. No new signals detected.');
-      }
-    } catch (err: any) {
-      console.error('Piel Engine: Scan failed:', err);
-      setScanError(err.message || 'Scan failed due to system restriction.');
-    } finally {
-      setIsScanning(false);
-      setCurrentFile('');
-    }
-  };
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || isScanning) return;
     setIsScanning(true);
     try {
-      const filesArray = Array.from(e.target.files) as File[];
-      const newSongs = await scanDirectory(filesArray);
+      console.log(`Piel Engine: Indexing ${e.target.files.length} signals...`);
+      const newSongs = await scanDirectory(e.target.files);
+      console.log(`Piel Engine: Identified ${newSongs.length} valid audio paths.`);
       for (const song of newSongs) {
         await db.saveSong(song);
       }
       onRefresh();
     } catch (err) {
-      console.error('Piel Engine: Scanning aborted.', err);
+      console.error('Piel Engine: Scanning aborted due to unexpected signal interference.', err);
     } finally {
       setIsScanning(false);
-      e.target.value = ''; 
+      if (e.target) e.target.value = ''; // Reset input
     }
   };
 
@@ -318,25 +256,15 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
     else setLibraryTab('songs');
   }, [screen]);
 
-  const getFolder = (song: Song) => {
-    if (song.folderPath) {
-      const parts = song.folderPath.split('/').filter(Boolean);
-      return parts[parts.length - 1] || 'Music';
-    }
-    if (song.nativePath && song.nativePath.includes('/')) {
-      const parts = song.nativePath.split('/');
-      // Removing the file name to get the directory path
-      const dirPath = parts.slice(0, -1).join('/');
-      // Returning just the last folder name for UI
-      return parts[parts.length - 2] || 'Root';
-    }
-    return 'Library';
+  const getFolder = (path: string) => {
+    const parts = path.split('/');
+    return parts.length > 1 ? parts[parts.length - 2] : 'Music';
   };
 
   const filteredSongs = songs.filter(s => {
-    if (selectedFolder) return getFolder(s) === selectedFolder;
+    if (selectedFolder) return getFolder(s.nativePath || s.title) === selectedFolder;
     if (libraryTab === 'liked') return s.liked === true || s.rating === 5;
-    if (libraryTab === 'recent') return true; 
+    if (libraryTab === 'recent') return true; // Recently added logic could go here
     return true;
   });
 
@@ -348,9 +276,9 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
     return 'Library';
   };
 
-  const folders = Array.from(new Set(songs.map(s => getFolder(s)))) as string[];
+  const folders = Array.from(new Set(songs.map(s => getFolder(s.nativePath || s.title)))) as string[];
   const folderCounts = folders.reduce((acc, folder: string) => {
-    acc[folder] = songs.filter(s => getFolder(s) === folder).length;
+    acc[folder] = songs.filter(s => getFolder(s.nativePath || s.title) === folder).length;
     return acc;
   }, {} as Record<string, number>);
 
@@ -421,11 +349,11 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
       <div className="flex justify-between items-start mb-6 md:mb-8 px-1">
         <div className="flex gap-3 md:gap-4">
           <div className="space-y-0.5">
-            <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase text-ink">
+            <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none uppercase">
               {getScreenTitle()}
             </h2>
             <div className="text-crimson font-black text-[8px] md:text-[9px] uppercase tracking-[0.2em] leading-none opacity-80">
-              {screen === 'folders' ? 'Media Protocol v2.0' : 'High-Fidelity Audio Signals'}
+              {screen === 'folders' ? 'Deep System Analysis' : 'Your Personal High-Fidelity Stream'}
             </div>
           </div>
         </div>
@@ -433,29 +361,28 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
         <div className="flex gap-2">
           {screen === 'folders' && (
             <button 
-              onClick={handleScanning}
-              disabled={isScanning || isLoading}
-              className={`p-2 border-2 border-ink bg-gold text-ink shadow-brutal rounded-xl hover:bg-ink hover:text-gold transition-colors active:translate-y-0.5 active:shadow-none ${isScanning || isLoading ? 'animate-pulse opacity-50' : ''}`}
-              title="Manual Scan"
+              disabled={isScanning}
+              onClick={async () => {
+                const { isNative, scanNativeMusic } = await import('../lib/nativeScanner');
+                if (await isNative()) {
+                  setIsScanning(true);
+                  try {
+                    await scanNativeMusic();
+                    onRefresh();
+                  } finally {
+                    setIsScanning(false);
+                  }
+                } else {
+                  // On web, trigger the folder picker directly
+                  folderInputRef.current?.click();
+                }
+              }}
+              className={`p-2 border-2 border-ink text-ink shadow-brutal rounded-xl transition-colors active:translate-y-0.5 active:shadow-none ${isScanning ? 'bg-ink/20 cursor-wait' : 'bg-gold hover:bg-ink hover:text-gold'}`}
+              title="System Scan"
             >
-               <Upload size={18} strokeWidth={2.5} />
+               {isScanning ? <RefreshCw className="w-[18px] h-[18px] animate-spin" /> : <Upload size={18} strokeWidth={2.5} />}
             </button>
           )}
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            multiple 
-            className="hidden" 
-            accept="audio/*"
-          />
-          <input 
-            type="file" 
-            ref={folderInputRef} 
-            onChange={handleFileUpload} 
-            className="hidden" 
-            {...({ webkitdirectory: "", directory: "" } as any)}
-          />
           <button className="p-2 border-2 border-ink bg-cream shadow-brutal rounded-xl hover:bg-gold transition-colors active:translate-y-0.5 active:shadow-none transition-all">
              <Filter size={18} strokeWidth={2.5} />
           </button>
@@ -480,96 +407,40 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
          ))}
       </div>
 
-      {isLoading && (
-        <div className="flex flex-col items-center justify-center py-20 animate-pulse">
-           <Disc className="w-12 h-12 text-crimson animate-spin mb-4" strokeWidth={3} />
-           <p className="font-ui text-[10px] font-black uppercase tracking-widest">Searching for frequencies...</p>
-        </div>
-      )}
-
-      {!isLoading && !selectedFolder && libraryTab === 'folders' ? (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto px-1">
+      {!selectedFolder && libraryTab === 'folders' ? (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-7xl mx-auto">
            {folders.length === 0 ? (
-             <div className="col-span-full h-80 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
-               <Music className="w-16 h-16 text-crimson mb-4 opacity-50" strokeWidth={1} />
-               <h3 className="font-black uppercase tracking-tighter text-xl mb-2">
-                 {isScanning ? `Analyzing ${scanProgress} Signals...` : 'No audio signals detected'}
-               </h3>
-               {!isScanning && (
-                 <>
-                   <p className="font-ui text-zinc-500 text-[11px] uppercase tracking-wide mb-6 max-w-sm text-center">
-                     The MediaStore query returned empty. This can happen on modern Android devices with restricted storage access.
-                   </p>
-                   <div className="flex flex-col gap-3 w-full max-w-xs">
-                     <button 
-                      onClick={async () => {
-                         const { pickAndScanFolder } = await import('../lib/nativeScanner');
-                         const newSongs = await pickAndScanFolder();
-                         if (newSongs.length > 0) {
-                           for (const song of newSongs) {
-                             await db.saveSong(song);
-                           }
-                           onRefresh();
-                         }
-                      }}
-                      className="px-8 py-3 bg-crimson text-cream border-2 border-ink shadow-brutal rounded-xl font-black uppercase text-xs hover:bg-gold hover:text-ink transition-all active:translate-y-0.5 active:shadow-none"
-                     >
-                       Scan Music Sector
-                     </button>
-                   </div>
-                 </>
-               )}
-               {scanError && !isScanning && (
-                  <p className="font-ui text-[10px] text-crimson uppercase font-black tracking-widest mt-4">
-                    Error: {scanError}
-                  </p>
-               )}
+             <div className="col-span-full h-64 border-4 border-dashed border-ink flex flex-col items-center justify-center bg-cream-warm p-8 text-center rounded-2xl">
+               <div className="w-16 h-16 mb-4 text-ink-muted opacity-30"><Music2 size={64} /></div>
+               <p className="font-display text-xl mb-4 text-ink-muted uppercase">Scanning for local frequencies...</p>
+               <button onClick={() => folderInputRef.current?.click()} className="brutal-btn uppercase text-xs">Deep Scan</button>
              </div>
            ) : (
-             <>
-               {folders.map(folder => (
-                 <motion.button
-                   key={folder}
-                   initial={{ opacity: 0, y: 20 }}
-                   animate={{ opacity: 1, y: 0 }}
-                   whileHover={{ x: 4 }}
-                   whileTap={{ scale: 0.98 }}
-                   onClick={() => { haptic(20); setSelectedFolder(folder); }}
-                   className="w-full brutal-card p-2 md:p-3 flex items-center gap-3 md:gap-4 bg-cream hover:bg-gold transition-colors group text-left relative overflow-hidden"
-                 >
-                    <div className="w-12 h-10 md:w-14 md:h-12 bg-crimson border-2 border-ink shadow-brutal rounded-xl flex items-center justify-center shrink-0">
-                       <LayoutGrid className="w-5 h-5 md:w-6 md:h-6 text-cream" strokeWidth={2.5} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                       <h4 className="font-serif text-xl md:text-2xl font-black text-ink leading-none truncate">{folder}</h4>
-                       <p className="text-crimson font-bold text-[8px] md:text-[9px] uppercase tracking-widest mt-1 opacity-80">{folderCounts[folder]} SIGNALS DETECTED</p>
-                    </div>
-                    <ChevronRight size={16} className="text-ink opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" strokeWidth={3} />
-                    
-                    {/* Decorative line matching the style */}
-                    <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-ink opacity-5" />
-                 </motion.button>
-               ))}
-               
-               <button 
-                onClick={async () => {
-                   const { pickAndScanFolder } = await import('../lib/nativeScanner');
-                   const newSongs = await pickAndScanFolder();
-                   if (newSongs.length > 0) {
-                     for (const song of newSongs) {
-                       await db.saveSong(song);
-                     }
-                     onRefresh();
-                   }
-                }}
-                className="h-32 border-4 border-dashed border-ink/40 flex flex-col items-center justify-center bg-ink/5 p-6 text-center rounded-2xl hover:bg-gold/10 hover:border-gold transition-all group"
+             folders.map(folder => (
+               <motion.button
+                 key={folder}
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 whileHover={{ x: 4 }}
+                 whileTap={{ scale: 0.98 }}
+                 onClick={() => { haptic(20); setSelectedFolder(folder); }}
+                 className="w-full brutal-card p-2 md:p-3 flex items-center gap-3 md:gap-4 bg-cream hover:bg-gold transition-colors group text-left relative overflow-hidden"
                >
-                 <FolderPlus className="w-6 h-6 text-ink opacity-40 group-hover:opacity-100 group-hover:text-gold mb-2" />
-                 <span className="font-black uppercase tracking-tighter text-[10px] text-ink/60 group-hover:text-ink">Add Other Folder</span>
-               </button>
-             </>
+                  <div className="w-12 h-10 md:w-14 md:h-12 bg-crimson border-2 border-ink shadow-brutal rounded-xl flex items-center justify-center shrink-0">
+                     <LayoutGrid className="w-5 h-5 md:w-6 md:h-6 text-cream" strokeWidth={2.5} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                     <h4 className="font-serif text-xl md:text-2xl font-black text-ink leading-none truncate">{folder}</h4>
+                     <p className="text-crimson font-bold text-[8px] md:text-[9px] uppercase tracking-widest mt-1 opacity-80">{folderCounts[folder]} SIGNALS DETECTED</p>
+                  </div>
+                  <ChevronRight size={16} className="text-ink opacity-30 group-hover:opacity-100 group-hover:translate-x-1 transition-all" strokeWidth={3} />
+                  
+                  {/* Decorative line matching the style */}
+                  <div className="absolute right-0 top-0 bottom-0 w-1.5 bg-ink opacity-5" />
+               </motion.button>
+             ))
            )}
-      </div>
+        </div>
       ) : (
         <div className="space-y-4">
           {selectedFolder && (
@@ -610,6 +481,24 @@ const Library: React.FC<LibraryProps> = ({ screen, songs, isLoading, onRefresh, 
           )}
         </div>
       )}
+
+      {/* Hidden Inputs for Web Scanning */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        multiple 
+        className="hidden" 
+        accept="audio/*"
+      />
+      <input 
+        type="file" 
+        ref={folderInputRef} 
+        onChange={handleFileUpload} 
+        multiple 
+        {...{ webkitdirectory: "true", directory: "true" } as any}
+        className="hidden" 
+      />
 
       {/* Playlist Picker Modal */}
       <AnimatePresence>

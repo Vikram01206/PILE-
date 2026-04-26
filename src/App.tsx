@@ -13,11 +13,8 @@ import {
 import { AudioProvider, useAudio } from './lib/AudioProvider';
 import { db } from './lib/db';
 import { Song, Playlist } from './types';
-import { isNative, scanNativeMusic, getMediaStoreSongs } from './lib/nativeScanner';
+import { isNative, scanNativeMusic } from './lib/nativeScanner';
 import { Preferences } from '@capacitor/preferences';
-import { Capacitor } from '@capacitor/core';
-import { Filesystem } from '@capacitor/filesystem';
-import { App as CapacitorApp } from '@capacitor/app';
 import NowPlaying from './components/NowPlaying';
 import Library from './components/Library';
 import PlaylistManager from './components/PlaylistManager';
@@ -51,7 +48,6 @@ const AppContent: React.FC = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [allSongs, setAllSongs] = useState<Song[]>([]);
-  const [isLoadingSongs, setIsLoadingSongs] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [fontTheme, setFontTheme] = useState('default');
   const { state: audioState, playSong } = useAudio();
@@ -69,69 +65,27 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     const loadSongs = async () => {
-      setIsLoadingSongs(true);
       const songs = await db.getAllSongs();
       setAllSongs(songs);
-      setIsLoadingSongs(false);
     };
     loadSongs();
   }, []);
 
   useEffect(() => {
-    const handleOpenWith = async (url: string) => {
-      console.log('Piel Engine: Processing open-with request for:', url);
-      // Create a temporary song object for external files
-      const fileName = url.split('/').pop() || 'External Signature';
-      const tempSong: Song = {
-        id: `external-${Date.now()}`,
-        title: fileName.replace(/\.[^/.]+$/, ""),
-        artist: 'External Signal',
-        album: 'Direct Feed',
-        duration: 0,
-        addedAt: Date.now(),
-        playCount: 0,
-        nativePath: url,
-        folderPath: 'External',
-        data: new File([], fileName),
-        url: url
-      };
-      
-      playSong(tempSong);
-      if (window.innerWidth < 768) {
-        setIsPlayerExpanded(true);
-      }
-    };
-
-    if (Capacitor.isNativePlatform()) {
-      CapacitorApp.getLaunchUrl().then(ret => {
-        if (ret && ret.url) {
-          handleOpenWith(ret.url);
+    const initNativeScan = async () => {
+      if (await isNative()) {
+        const { value } = await Preferences.get({ key: 'has_initial_scan' });
+        if (!value) {
+          // Trigger a background scan on first launch
+          scanNativeMusic().then(async () => {
+             await Preferences.set({ key: 'has_initial_scan', value: 'true' });
+             const songs = await db.getAllSongs();
+             setAllSongs(songs);
+          });
         }
-      });
-
-      const listener = CapacitorApp.addListener('appUrlOpen', data => {
-        handleOpenWith(data.url);
-      });
-
-      return () => {
-        listener.remove();
-      };
-    }
-  }, [playSong]);
-
-  useEffect(() => {
-    const initAppData = async () => {
-      setIsLoadingSongs(true);
-      try {
-        const songs = await db.getAllSongs();
-        setAllSongs(songs);
-      } catch (err) {
-        console.error('Piel Engine: Sector boot failure:', err);
-      } finally {
-        setIsLoadingSongs(false);
       }
     };
-    initAppData();
+    initNativeScan();
   }, []);
 
   const renderScreen = () => {
@@ -139,15 +93,7 @@ const AppContent: React.FC = () => {
       case 'stats': return <StatsView />;
       case 'settings': return <SettingsView fontTheme={fontTheme} onFontThemeChange={setFontTheme} />;
       case 'playlists': return <PlaylistManager allSongs={allSongs} />;
-      default: return (
-        <Library 
-          screen={currentScreen} 
-          songs={allSongs} 
-          isLoading={isLoadingSongs}
-          onRefresh={() => db.getAllSongs().then(setAllSongs)} 
-          onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} 
-        />
-      );
+      default: return <Library screen={currentScreen} songs={allSongs} onRefresh={() => db.getAllSongs().then(setAllSongs)} onPlay={() => { if(window.innerWidth < 768) setIsPlayerExpanded(true); }} />;
     }
   };
 

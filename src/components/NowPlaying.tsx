@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { motion, AnimatePresence, Reorder, useDragControls, useMotionValue, animate } from 'motion/react';
+import { motion, AnimatePresence, Reorder, useDragControls, useMotionValue } from 'motion/react';
 import { 
   Play, Pause, SkipForward, SkipBack, Repeat, Shuffle, 
   Heart, Plus, Share2, List, Volume2, VolumeX, ChevronDown, Disc, MoreVertical, Info, Music2,
@@ -240,12 +240,13 @@ const NowPlaying: React.FC<{ isExpanded: boolean; onMinimize?: () => void }> = (
         drag="y"
         dragControls={parentDragControls}
         dragListener={false}
-        dragConstraints={{ top: 0, bottom: window.innerHeight }}
+        dragConstraints={{ top: 0, bottom: 800 }}
         dragElastic={{ top: 0, bottom: 0.1 }}
         style={{ 
-          y,
+          y: isExpanded ? y : '100%', 
           touchAction: 'none',
           pointerEvents: isExpanded ? 'auto' : 'none',
+          visibility: isExpanded || !y.isAnimating() ? 'visible' : 'hidden'
         }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={(_, info) => {
@@ -253,16 +254,15 @@ const NowPlaying: React.FC<{ isExpanded: boolean; onMinimize?: () => void }> = (
           if (info.offset.y > 150 || info.velocity.y > 600) {
             onMinimize?.();
           } else {
-            animate(y, 0, { type: 'spring', damping: 30, stiffness: 300 });
+            y.set(0);
           }
         }}
-        animate={{ y: isExpanded ? 0 : window.innerHeight }}
+        animate={isExpanded ? { y: 0 } : { y: '100%' }}
         transition={{ 
           type: 'spring', 
-          damping: 35, 
-          stiffness: 350, 
-          mass: 0.8,
-          restDelta: 0.01
+          damping: 38, 
+          stiffness: 380, 
+          mass: 0.8
         }}
         className="fixed inset-0 z-[100] flex flex-col bg-cream shadow-2xl rounded-t-[40px] overflow-hidden"
       >
@@ -474,6 +474,12 @@ const NowPlaying: React.FC<{ isExpanded: boolean; onMinimize?: () => void }> = (
             className="w-9 h-9 border-2 border-ink bg-cream flex items-center justify-center shadow-brutal hover:bg-cream-dark transition-colors rounded-lg"
           >
             {state.volume === 0 ? <VolumeX size={18} className="text-crimson" /> : <Volume2 size={18} />}
+          </button>
+          <button 
+            onClick={() => { haptic(15); setShowVisualizer(!showVisualizer); }}
+            className={`w-9 h-9 border-2 border-ink flex items-center justify-center shadow-brutal transition-colors rounded-lg ${showVisualizer ? 'bg-gold text-ink' : 'bg-cream hover:bg-cream-dark'}`}
+          >
+            <Disc size={18} className={state.isPlaying ? 'animate-spin-slow' : ''} />
           </button>
           <button 
             onClick={() => { haptic(20); setShowQueue(true); }}
